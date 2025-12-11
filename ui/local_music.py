@@ -37,7 +37,7 @@ class LocalMusicScreen(Screen):
             self.idx = min(len(self.songs) - 1, self.idx + 1)
             return self
         
-        if key == "ENTER":
+        if key == "ENTER" or key == "RIGHT":
             selected = self.songs[self.idx]
             self.app.player_play(selected)
             return self
@@ -50,7 +50,7 @@ class LocalMusicScreen(Screen):
                 self.app.player_resume_or_play(self.songs[self.idx])
             return self
         
-        if key == "b":
+        if key == "b" or key == "LEFT":
             from .home import HomeScreen
             return HomeScreen(self.app)
         

@@ -35,13 +35,13 @@ class ScanOptionsScreen(Screen):
             self.idx = min(len(self.options) - 1, self.idx + 1)
             return self
         
-        if key == "ENTER":
+        if key == "ENTER" or key == "RIGHT":
             # placeholder: just print selection (later: change config)
             print(f"Selected: {self.options[self.idx]}")
             input("Press Enter to continue...")
             return self
         
-        if key == "b":
+        if key == "b" or key == "LEFT":
             from .home import HomeScreen
             return HomeScreen(self.app)
         

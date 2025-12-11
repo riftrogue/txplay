@@ -36,7 +36,7 @@ class StreamsMenuScreen(Screen):
             self.idx = min(len(self.streams) - 1, self.idx + 1)
             return self
         
-        if key == "ENTER":
+        if key == "ENTER" or key == "RIGHT":
             self.app.player_play(self.streams[self.idx])
             return self
         
@@ -47,7 +47,7 @@ class StreamsMenuScreen(Screen):
                 self.app.player_resume_or_play(self.streams[self.idx])
             return self
         
-        if key == "b":
+        if key == "b" or key == "LEFT":
             from .home import HomeScreen
             return HomeScreen(self.app)
         

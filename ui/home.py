@@ -36,7 +36,7 @@ class HomeScreen(Screen):
             self.idx = min(len(self.OPTIONS) - 1, self.idx + 1)
             return self
         
-        if key == "ENTER":
+        if key == "ENTER" or key == "RIGHT":
             # Import here to avoid circular imports
             from .local_music import LocalMusicScreen
             from .streams_menu import StreamsMenuScreen

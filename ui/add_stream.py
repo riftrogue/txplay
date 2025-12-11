@@ -18,7 +18,7 @@ class AddStreamScreen(Screen):
 
     def handle_input(self, key):
         """Handle keypresses."""
-        if key == "b":
+        if key == "b" or key == "LEFT":
             from .home import HomeScreen
             return HomeScreen(self.app)
         
