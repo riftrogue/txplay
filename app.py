@@ -62,12 +62,12 @@ class App:
     def player_play(self, target):
         """Start playing a file or URL."""
         self.player.play(target)
-        self.player_box.set(track=target, state=self.player.state)
+        self.player_box.set_playing(track=target, state=self.player.state)
 
     def player_pause(self):
         """Pause playback."""
         self.player.pause()
-        self.player_box.set(track=self.player.current, state=self.player.state)
+        self.player_box.set_playing(track=self.player.current, state=self.player.state)
 
     def player_resume_or_play(self, target):
         """Resume if paused, otherwise start playing."""
@@ -75,7 +75,7 @@ class App:
             self.player.resume()
         else:
             self.player.play(target)
-        self.player_box.set(track=self.player.current, state=self.player.state)
+        self.player_box.set_playing(track=self.player.current, state=self.player.state)
 
     def quit(self):
         """Quit the application. Clean up player if needed."""
