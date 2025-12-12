@@ -104,8 +104,8 @@ class App:
                 # Get single keypress
                 key = get_key()
                 
-                # Global quit rule: q = instant exit from anywhere
-                if key == "q":
+                # Global quit rule: q or ESC = instant exit from anywhere
+                if key == "q" or key == "ESC":
                     self.quit()
                     break
                 
