@@ -49,7 +49,7 @@ class PlayerStatusBox:
             line1 = " Status: Ready "
             line2 = f" Songs loaded: {self.scan_count} "
         
-        width = max(50, len(line1) + 4, len(line2) + 4)
+        width = max(70, len(line1) + 4, len(line2) + 4)
         
         top = "┌" + "─" * (width - 2) + "┐"
         bot = "└" + "─" * (width - 2) + "┘"

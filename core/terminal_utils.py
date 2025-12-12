@@ -47,16 +47,14 @@ class Paginator:
         
         Args:
             items: List of items to paginate
-            page_size: Items per page (auto-detect if None)
+            page_size: Items per page (default: 20)
         """
         self.items = items
         self.current_idx = 0
         
-        # Auto-detect page size based on terminal height
+        # Default page size is 20 items
         if page_size is None:
-            rows, _ = get_terminal_size()
-            # Reserve space for header, status box, footer
-            self.page_size = max(10, rows - 12)
+            self.page_size = 20
         else:
             self.page_size = page_size
     
