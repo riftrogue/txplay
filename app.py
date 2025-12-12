@@ -11,6 +11,7 @@ import termios
 from ui.home import HomeScreen
 from ui.player_status_box import PlayerStatusBox
 from core.player import DummyPlayer
+from core.terminal_utils import hide_cursor, show_cursor
 
 
 def get_key():
@@ -34,6 +35,13 @@ def get_key():
                     return "RIGHT"
                 if ch3 == "D":
                     return "LEFT"
+                # Page Up/Down
+                if ch3 == "5":
+                    sys.stdin.read(1)  # consume ~
+                    return "\x1b[5~"
+                if ch3 == "6":
+                    sys.stdin.read(1)  # consume ~
+                    return "\x1b[6~"
             return "ESC"
         
         # Handle Enter
@@ -62,12 +70,12 @@ class App:
     def player_play(self, target):
         """Start playing a file or URL."""
         self.player.play(target)
-        self.player_box.set(track=target, state=self.player.state)
+        self.player_box.set_playing(track=target, state=self.player.state)
 
     def player_pause(self):
         """Pause playback."""
         self.player.pause()
-        self.player_box.set(track=self.player.current, state=self.player.state)
+        self.player_box.set_playing(track=self.player.current, state=self.player.state)
 
     def player_resume_or_play(self, target):
         """Resume if paused, otherwise start playing."""
@@ -75,33 +83,39 @@ class App:
             self.player.resume()
         else:
             self.player.play(target)
-        self.player_box.set(track=self.player.current, state=self.player.state)
+        self.player_box.set_playing(track=self.player.current, state=self.player.state)
 
     def quit(self):
         """Quit the application. Clean up player if needed."""
         self.running = False
+        show_cursor()  # Restore cursor visibility
         # TODO: terminate mpv subprocess when real player is implemented
         print("\nExiting txplay...")
 
     def run(self):
         """Main loop: render screen, get key, handle input, repeat."""
-        while self.running:
-            # Draw current screen
-            self.current_screen.render()
-            
-            # Get single keypress
-            key = get_key()
-            
-            # Global quit rule: q = instant exit from anywhere
-            if key == "q":
-                self.quit()
-                break
-            
-            # Let current screen handle the key and possibly switch screens
-            next_screen = self.current_screen.handle_input(key)
-            if next_screen is None:
-                break
-            self.current_screen = next_screen
+        hide_cursor()  # Hide cursor for cleaner UI
+        
+        try:
+            while self.running:
+                # Draw current screen
+                self.current_screen.render()
+                
+                # Get single keypress
+                key = get_key()
+                
+                # Global quit rule: q or ESC = instant exit from anywhere
+                if key == "q" or key == "ESC":
+                    self.quit()
+                    break
+                
+                # Let current screen handle the key and possibly switch screens
+                next_screen = self.current_screen.handle_input(key)
+                if next_screen is None:
+                    break
+                self.current_screen = next_screen
+        finally:
+            show_cursor()  # Always restore cursor on exit
 
 
 def main():
