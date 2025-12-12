@@ -24,24 +24,28 @@ def get_key():
         
         # Handle arrow keys (escape sequences)
         if ch1 == "\x1b":
-            ch2 = sys.stdin.read(1)
-            if ch2 == "[":
-                ch3 = sys.stdin.read(1)
-                if ch3 == "A":
-                    return "UP"
-                if ch3 == "B":
-                    return "DOWN"
-                if ch3 == "C":
-                    return "RIGHT"
-                if ch3 == "D":
-                    return "LEFT"
-                # Page Up/Down
-                if ch3 == "5":
-                    sys.stdin.read(1)  # consume ~
-                    return "\x1b[5~"
-                if ch3 == "6":
-                    sys.stdin.read(1)  # consume ~
-                    return "\x1b[6~"
+            # Set non-blocking to check if more chars are coming
+            import select
+            if select.select([sys.stdin], [], [], 0.05)[0]:  # 50ms timeout
+                ch2 = sys.stdin.read(1)
+                if ch2 == "[":
+                    ch3 = sys.stdin.read(1)
+                    if ch3 == "A":
+                        return "UP"
+                    if ch3 == "B":
+                        return "DOWN"
+                    if ch3 == "C":
+                        return "RIGHT"
+                    if ch3 == "D":
+                        return "LEFT"
+                    # Page Up/Down
+                    if ch3 == "5":
+                        sys.stdin.read(1)  # consume ~
+                        return "\x1b[5~"
+                    if ch3 == "6":
+                        sys.stdin.read(1)  # consume ~
+                        return "\x1b[6~"
+            # If no more chars, it's a standalone ESC press
             return "ESC"
         
         # Handle Enter
