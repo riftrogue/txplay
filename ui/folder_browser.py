@@ -1,6 +1,7 @@
 """Interactive folder browser for custom scan path selection."""
 
 import os
+from core.terminal_utils import clear_screen
 from .base_screen import Screen
 
 
@@ -32,7 +33,7 @@ class FolderBrowserScreen(Screen):
     
     def render(self):
         """Draw the folder browser."""
-        os.system("clear")
+        clear_screen()
         self.app.player_box.render()
         print()
         print(" Custom Folder Browser")

@@ -1,6 +1,6 @@
 """Scan options screen - configure where to scan for music."""
 
-import os
+from core.terminal_utils import clear_screen
 from .base_screen import Screen
 from core.scanner import Scanner
 from core.config import load_config, save_config
@@ -28,7 +28,7 @@ class ScanOptionsScreen(Screen):
 
     def render(self):
         """Draw the scan options screen."""
-        os.system("clear")
+        clear_screen()
         self.app.player_box.render()
         print()
         print(" Scan Options")

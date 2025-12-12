@@ -1,6 +1,6 @@
 """Saved streams screen - manage and play online streams."""
 
-import os
+from core.terminal_utils import clear_screen
 from .base_screen import Screen
 
 class StreamsMenuScreen(Screen):
@@ -14,7 +14,7 @@ class StreamsMenuScreen(Screen):
 
     def render(self):
         """Draw the streams list."""
-        os.system("clear")
+        clear_screen()
         self.app.player_box.render()
         print()
         print(" Saved Streams")

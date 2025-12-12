@@ -1,6 +1,6 @@
 """Add stream screen - add new streaming URLs."""
 
-import os
+from core.terminal_utils import clear_screen
 from .base_screen import Screen
 
 class AddStreamScreen(Screen):
@@ -8,7 +8,7 @@ class AddStreamScreen(Screen):
     
     def render(self):
         """Draw the add stream screen."""
-        os.system("clear")
+        clear_screen()
         self.app.player_box.render()
         print()
         print(" Add Stream")

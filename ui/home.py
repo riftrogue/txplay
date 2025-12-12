@@ -1,6 +1,6 @@
 """Home screen - main menu of txplay."""
 
-import os
+from core.terminal_utils import clear_screen
 from .base_screen import Screen
 
 class HomeScreen(Screen):
@@ -14,7 +14,7 @@ class HomeScreen(Screen):
 
     def render(self):
         """Draw the home screen."""
-        os.system("clear")
+        clear_screen()
         self.app.player_box.render()
         print()
         print(" txplay 0.1")
