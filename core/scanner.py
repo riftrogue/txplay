@@ -8,15 +8,17 @@ from constants import AUDIO_EXTENSIONS
 class Scanner:
     """Recursively scan directories for audio files."""
     
-    def __init__(self, status_callback=None):
+    def __init__(self, status_callback=None, exclude_phone_storage=False):
         """
         Initialize scanner.
         
         Args:
             status_callback: Function to call with progress updates (path, count)
+            exclude_phone_storage: If True, skip /sdcard and /storage paths
         """
         self.status_callback = status_callback
         self.visited_paths = set()  # Track visited paths to avoid symlink loops
+        self.exclude_phone_storage = exclude_phone_storage
     
     def scan(self, paths, cache_file):
         """
@@ -74,6 +76,11 @@ class Scanner:
             return music_files
         self.visited_paths.add(real_path)
         
+        # Skip phone storage paths if exclude_phone_storage is enabled
+        if self.exclude_phone_storage:
+            if real_path.startswith('/sdcard') or real_path.startswith('/storage'):
+                return music_files
+        
         try:
             items = os.listdir(path)
         except (PermissionError, OSError):
@@ -89,6 +96,12 @@ class Scanner:
             
             # Check if directory or symlink to directory
             if os.path.isdir(full_path):
+                # Skip phone storage symlinks/paths during Termux scan
+                if self.exclude_phone_storage:
+                    real_subpath = os.path.realpath(full_path)
+                    if real_subpath.startswith('/sdcard') or real_subpath.startswith('/storage'):
+                        continue  # Skip this directory
+                
                 # Recursively scan subdirectory
                 music_files.extend(self._scan_directory(full_path))
             

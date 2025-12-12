@@ -109,7 +109,8 @@ class ScanOptionsScreen(Screen):
         def progress_callback(path, count):
             self.app.player_box.set_scanning(path, count)
         
-        scanner = Scanner(status_callback=progress_callback)
+        # Enable phone storage exclusion for Termux scan
+        scanner = Scanner(status_callback=progress_callback, exclude_phone_storage=True)
         files = scanner.scan(HOME_PATH, TERMUX_CACHE)
         
         self.app.player_box.set_idle(len(files))
