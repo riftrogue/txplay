@@ -5,7 +5,8 @@ import sys
 
 def clear_screen():
     """Clear screen using ANSI escape codes (no flicker)."""
-    sys.stdout.write("\033[2J\033[H")
+    # Clear screen, clear scrollback, move cursor to home
+    sys.stdout.write("\033[2J\033[3J\033[H")
     sys.stdout.flush()
 
 

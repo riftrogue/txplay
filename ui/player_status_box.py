@@ -1,6 +1,7 @@
 """Persistent player status box shown at top of every screen."""
 
 import os
+import sys
 
 class PlayerStatusBox:
     """Shows current track, playback state, or scanning progress."""
@@ -32,6 +33,9 @@ class PlayerStatusBox:
 
     def render(self):
         """Draw the status box."""
+        # Force cursor to top-left before rendering
+        sys.stdout.write("\033[H")
+        
         if self.mode == "playing":
             # Show playback info
             line1 = f" Playing: {os.path.basename(self.track) if self.track else 'none'} "
@@ -56,3 +60,4 @@ class PlayerStatusBox:
         print(middle1)
         print(middle2)
         print(bot)
+        sys.stdout.flush()
