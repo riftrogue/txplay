@@ -49,9 +49,12 @@ class LocalMusicScreen(Screen):
             # Show visible items on current page
             for i, song_path in enumerate(self.paginator.visible_items):
                 is_selected = (i == self.paginator.local_idx)
-                prefix = ">" if is_selected else " "
                 filename = os.path.basename(song_path)
-                print(f"{prefix} {filename}")
+                if is_selected:
+                    # Inverted colors for selected item
+                    print(f"\033[7m {filename}\033[0m")
+                else:
+                    print(f" {filename}")
             
             # Show pagination info
             print()

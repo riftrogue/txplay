@@ -21,8 +21,11 @@ class StreamsMenuScreen(Screen):
         print("-" * 40)
         
         for i, s in enumerate(self.streams):
-            prefix = ">" if i == self.idx else " "
-            print(f"{prefix} {s}")
+            if i == self.idx:
+                # Inverted colors for selected item
+                print(f"\033[7m {s}\033[0m")
+            else:
+                print(f" {s}")
         
         print("\n[Enter] Play   [Space] Play/Pause   [d] Delete   [e] Edit   [b] Back   [q] Quit")
 

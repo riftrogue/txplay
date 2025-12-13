@@ -21,8 +21,11 @@ class HomeScreen(Screen):
         print("-" * 40)
         
         for i, opt in enumerate(self.OPTIONS):
-            prefix = ">" if i == self.idx else " "
-            print(f"{prefix} {opt}")
+            if i == self.idx:
+                # Inverted colors for selected item
+                print(f"\033[7m {opt}\033[0m")
+            else:
+                print(f" {opt}")
         
         print("\n[q] Quit")
 

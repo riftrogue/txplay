@@ -45,8 +45,11 @@ class FolderBrowserScreen(Screen):
             print("\n (No subdirectories found)")
         else:
             for i, folder in enumerate(self.folders):
-                prefix = ">" if i == self.idx else " "
-                print(f"{prefix} 📁 {folder}/")
+                if i == self.idx:
+                    # Inverted colors for selected item
+                    print(f"\033[7m 📁 {folder}/\033[0m")
+                else:
+                    print(f" 📁 {folder}/")
         
         print("\n[→] Open folder   [Enter] Select this path and scan")
         print("[←/b] Go back (cd ..)")
