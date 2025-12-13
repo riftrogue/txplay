@@ -4,7 +4,7 @@ import os
 from .base_screen import Screen
 from core.config import load_config
 from core.scanner import Scanner
-from core.terminal_utils import clear_screen, Paginator
+from core.terminal_utils import clear_screen, Paginator, get_terminal_size, truncate_filename
 from constants import PHONE_CACHE, TERMUX_CACHE, CUSTOM_CACHE
 
 
@@ -46,15 +46,20 @@ class LocalMusicScreen(Screen):
             print("\n No music files found.")
             print(" Try scanning in Scan Options.")
         else:
+            # Get terminal width for truncation
+            _, term_width = get_terminal_size()
+            max_filename_len = term_width - 5  # Leave margin for padding and borders
+            
             # Show visible items on current page
             for i, song_path in enumerate(self.paginator.visible_items):
                 is_selected = (i == self.paginator.local_idx)
                 filename = os.path.basename(song_path)
+                truncated = truncate_filename(filename, max_filename_len)
                 if is_selected:
                     # Inverted colors for selected item
-                    print(f"\033[7m {filename}\033[0m")
+                    print(f"\033[7m {truncated}\033[0m")
                 else:
-                    print(f" {filename}")
+                    print(f" {truncated}")
             
             # Show pagination info
             print()

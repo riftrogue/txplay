@@ -2,6 +2,7 @@
 
 import os
 import sys
+from core.terminal_utils import get_terminal_size, truncate_filename
 
 class PlayerStatusBox:
     """Shows current track, playback state, or scanning progress."""
@@ -36,25 +37,33 @@ class PlayerStatusBox:
         # Force cursor to top-left before rendering
         sys.stdout.write("\033[H")
         
+        # Get terminal width and set box width (leave some margin)
+        _, term_width = get_terminal_size()
+        box_width = min(term_width - 4, 70)  # Max 70 chars or terminal width - 4
+        content_width = box_width - 4  # Account for borders and padding
+        
         if self.mode == "playing":
-            # Show playback info
-            line1 = f" Playing: {os.path.basename(self.track) if self.track else 'none'} "
+            # Show playback info with truncated filename
+            filename = os.path.basename(self.track) if self.track else 'none'
+            truncated = truncate_filename(filename, content_width - 10)  # Reserve space for "Playing: "
+            line1 = f" Playing: {truncated} "
             line2 = f" State: {self.state} "
         elif self.mode == "scanning":
-            # Show scanning progress
-            line1 = f" Scanning: {self.scan_path or '...'} "
+            # Show scanning progress with truncated path
+            scan_path = self.scan_path or '...'
+            truncated = truncate_filename(scan_path, content_width - 11)  # Reserve space for "Scanning: "
+            line1 = f" Scanning: {truncated} "
             line2 = f" Found: {self.scan_count} songs "
         else:
             # Idle state
             line1 = " Status: Ready "
             line2 = f" Songs loaded: {self.scan_count} "
         
-        width = max(50, len(line1) + 4, len(line2) + 4)
-        
-        top = "┌" + "─" * (width - 2) + "┐"
-        bot = "└" + "─" * (width - 2) + "┘"
-        middle1 = "│" + line1.ljust(width - 2) + "│"
-        middle2 = "│" + line2.ljust(width - 2) + "│"
+        # Use fixed width box
+        top = "┌" + "─" * (box_width - 2) + "┐"
+        bot = "└" + "─" * (box_width - 2) + "┘"
+        middle1 = "│" + line1.ljust(box_width - 2) + "│"
+        middle2 = "│" + line2.ljust(box_width - 2) + "│"
         
         print(top)
         print(middle1)
