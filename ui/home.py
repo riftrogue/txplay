@@ -4,9 +4,9 @@ from core.terminal_utils import clear_screen
 from .base_screen import Screen
 
 class HomeScreen(Screen):
-    """Main menu with options: Local Music, Saved Streams, Add Stream, Scan Options."""
+    """Main menu with options: Local Music, Saved Streams, Add Stream, Scan Options, Settings."""
     
-    OPTIONS = ["Local Music", "Saved Streams", "Add Stream", "Scan Options"]
+    OPTIONS = ["Local Music", "Saved Streams", "Add Stream", "Scan Options", "Settings"]
 
     def __init__(self, app):
         super().__init__(app)
@@ -42,6 +42,7 @@ class HomeScreen(Screen):
             from .streams_menu import StreamsMenuScreen
             from .add_stream import AddStreamScreen
             from .scan_options import ScanOptionsScreen
+            from .settings import SettingsScreen
             
             sel = self.OPTIONS[self.idx]
             if sel == "Local Music":
@@ -52,6 +53,8 @@ class HomeScreen(Screen):
                 return AddStreamScreen(self.app)
             if sel == "Scan Options":
                 return ScanOptionsScreen(self.app)
+            if sel == "Settings":
+                return SettingsScreen(self.app)
             return self
         
         if key == "q":
