@@ -35,13 +35,15 @@ class ScanOptionsScreen(Screen):
         print("-" * 50)
         
         for i, opt in enumerate(self.options):
-            prefix = ">" if i == self.idx else " "
-            
             # Show current mode indicator
             mode_name = ["phone", "termux", "custom"][i]
             indicator = " ●" if self.current_mode == mode_name else ""
             
-            print(f"{prefix} {opt}{indicator}")
+            if i == self.idx:
+                # Inverted colors for selected item
+                print(f"\033[7m {opt}{indicator}\033[0m")
+            else:
+                print(f" {opt}{indicator}")
         
         print("\n[Enter/→] Select and Rescan")
         print("[←/b] Back   [q] Quit")

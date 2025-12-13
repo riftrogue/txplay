@@ -38,6 +38,34 @@ def get_terminal_size():
         return 24, 80  # fallback
 
 
+def truncate_filename(filename, max_length):
+    """Truncate filename with ellipsis if too long.
+    
+    Args:
+        filename: The filename to truncate
+        max_length: Maximum length allowed
+        
+    Returns:
+        Truncated filename with '...' in the middle if needed
+    """
+    if len(filename) <= max_length:
+        return filename
+    
+    if max_length < 10:
+        return filename[:max_length]
+    
+    # Keep extension if it's a file
+    if '.' in filename:
+        name, ext = filename.rsplit('.', 1)
+        # Reserve space for extension + ellipsis
+        available = max_length - len(ext) - 4  # -4 for "...."
+        if available > 5:
+            return name[:available] + "..." + ext
+    
+    # No extension or too short - just truncate at end
+    return filename[:max_length - 3] + "..."
+
+
 class Paginator:
     """Handle pagination for large lists."""
     
