@@ -6,6 +6,7 @@ import json
 import os
 import time
 import threading
+import sys
 
 
 class MPVPlayer:
@@ -22,17 +23,30 @@ class MPVPlayer:
         self.on_track_end = None  # Callback when track ends
         self.position = 0  # Current playback position in seconds
         self.duration = 0  # Total track duration in seconds
+        self.debug = True  # Enable debug logging
+    
+    def _log(self, msg):
+        """Debug logging to stderr."""
+        if self.debug:
+            print(f"[MPV DEBUG] {msg}", file=sys.stderr, flush=True)
         
     def _start_mpv(self):
         """Start MPV process with IPC enabled."""
         if self.process and self.process.poll() is None:
+            self._log("MPV already running")
             return  # Already running
         
         # Remove old socket if exists
         if os.path.exists(self.socket_path):
-            os.remove(self.socket_path)
+            try:
+                os.remove(self.socket_path)
+                self._log(f"Removed old socket: {self.socket_path}")
+            except OSError as e:
+                self._log(f"Failed to remove socket: {e}")
+                pass
         
-        # Start MPV with IPC socket
+        # Start MPV with IPC socket - optimized for Termux
+        self._log("Starting MPV process...")
         self.process = subprocess.Popen(
             [
                 "mpv",
@@ -40,36 +54,50 @@ class MPVPlayer:
                 "--no-video",  # Audio only
                 "--idle=yes",  # Keep MPV running
                 "--no-terminal",  # Don't show MPV output
+                "--audio-display=no",  # No album art
+                "--really-quiet",  # Suppress messages
             ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            preexec_fn=os.setpgrp if hasattr(os, 'setpgrp') else None  # Detach from terminal
         )
+        self._log(f"MPV PID: {self.process.pid}")
         
-        # Wait for socket to be created
-        for _ in range(50):  # 5 second timeout
+        # Wait for socket to be created (reduce timeout)
+        for i in range(20):  # 2 second timeout instead of 5
             if os.path.exists(self.socket_path):
-                time.sleep(0.1)  # Give it a moment to be ready
+                self._log(f"Socket created after {i*0.1:.1f}s")
+                time.sleep(0.05)  # Small delay to ensure socket is ready
                 break
             time.sleep(0.1)
+        else:
+            # Socket not created - MPV failed to start
+            stdout, stderr = self.process.communicate(timeout=1)
+            self._log(f"MPV stdout: {stdout.decode()}")
+            self._log(f"MPV stderr: {stderr.decode()}")
+            raise RuntimeError("MPV failed to start - socket not created")
         
         # Start monitoring thread
         if not self._running:
             self._running = True
             self._monitor_thread = threading.Thread(target=self._monitor_playback, daemon=True)
             self._monitor_thread.start()
+            self._log("Monitoring thread started")
     
     def _send_command(self, command):
         """Send command to MPV via IPC socket."""
         try:
             if not os.path.exists(self.socket_path):
+                self._log(f"Socket not found: {self.socket_path}")
                 return None
             
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.settimeout(1.0)
+            sock.settimeout(2.0)  # Increased timeout
             sock.connect(self.socket_path)
             
             # Send command as JSON
             cmd_json = json.dumps(command) + "\n"
+            self._log(f"Sending: {command}")
             sock.sendall(cmd_json.encode('utf-8'))
             
             # Read response
@@ -85,9 +113,12 @@ class MPVPlayer:
             sock.close()
             
             if response:
-                return json.loads(response.decode('utf-8').strip())
+                result = json.loads(response.decode('utf-8').strip())
+                self._log(f"Response: {result}")
+                return result
             return None
-        except (socket.error, json.JSONDecodeError, OSError):
+        except (socket.error, json.JSONDecodeError, OSError) as e:
+            self._log(f"Command error: {e}")
             return None
     
     def _get_property(self, prop):
@@ -128,14 +159,31 @@ class MPVPlayer:
     
     def play(self, target):
         """Start playing a file or URL."""
-        self._start_mpv()
-        
-        # Load and play the file
-        self._send_command({"command": ["loadfile", target]})
-        self.current = target
-        self.state = "playing"
-        self.position = 0
-        self.duration = 0
+        try:
+            self._log(f"Playing: {target}")
+            self._start_mpv()
+            
+            # Load and play the file
+            result = self._send_command({"command": ["loadfile", target]})
+            
+            # Check if load was successful
+            if result and result.get("error") == "success":
+                self._log(f"Successfully loaded: {target}")
+                self.current = target
+                self.state = "playing"
+                self.position = 0
+                self.duration = 0
+            else:
+                # Failed to load
+                self._log(f"Failed to load: {result}")
+                raise RuntimeError(f"Failed to load file: {target}")
+        except Exception as e:
+            # Reset state on error
+            self._log(f"Play error: {e}")
+            self.current = None
+            self.state = "stopped"
+            # Re-raise for debugging
+            raise
     
     def pause(self):
         """Pause playback."""
@@ -165,13 +213,37 @@ class MPVPlayer:
     def quit(self):
         """Quit MPV and cleanup."""
         self._running = False
-        if self._monitor_thread:
-            self._monitor_thread.join(timeout=2)
         
-        if self.process:
-            self._send_command({"command": ["quit"]})
-            self.process.wait(timeout=2)
+        # Stop monitoring thread
+        if self._monitor_thread and self._monitor_thread.is_alive():
+            self._monitor_thread.join(timeout=1)
+        
+        # Try to quit MPV gracefully
+        if self.process and self.process.poll() is None:
+            try:
+                self._send_command({"command": ["quit"]})
+                # Give it a moment to quit
+                time.sleep(0.2)
+            except:
+                pass
+            
+            # Force kill if still running
+            try:
+                if self.process.poll() is None:
+                    self.process.terminate()
+                    try:
+                        self.process.wait(timeout=1)
+                    except subprocess.TimeoutExpired:
+                        self.process.kill()  # Force kill
+                        self.process.wait(timeout=1)
+            except:
+                pass
+            
             self.process = None
         
+        # Clean up socket
         if os.path.exists(self.socket_path):
-            os.remove(self.socket_path)
+            try:
+                os.remove(self.socket_path)
+            except OSError:
+                pass
