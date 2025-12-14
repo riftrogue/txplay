@@ -28,7 +28,7 @@ class MPVPlayer:
         self.on_track_end = None  # Callback when track ends
         self.position = 0  # Current playback position in seconds
         self.duration = 0  # Total track duration in seconds
-        self.debug = True  # Enable debug logging
+        self.debug = False  # Disable debug logging (set True for troubleshooting)
     
     def _log(self, msg):
         """Debug logging to stderr."""
