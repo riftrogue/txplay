@@ -13,12 +13,14 @@ class PlayerStatusBox:
         self.state = "stopped"  # playing / paused / stopped
         self.scan_path = None
         self.scan_count = 0
+        self.queue_count = 0  # Number of items in queue
 
-    def set_playing(self, track, state):
+    def set_playing(self, track, state, queue_count=0):
         """Update playback status."""
         self.mode = "playing"
         self.track = track
         self.state = state
+        self.queue_count = queue_count
 
     def set_scanning(self, path, count):
         """Update scanning progress."""
@@ -26,11 +28,12 @@ class PlayerStatusBox:
         self.scan_path = path
         self.scan_count = count
     
-    def set_idle(self, song_count=0):
+    def set_idle(self, song_count=0, queue_count=0):
         """Set to idle state."""
         self.mode = "idle"
         self.track = None
         self.scan_count = song_count
+        self.queue_count = queue_count
 
     def render(self):
         """Draw the status box."""
@@ -47,7 +50,12 @@ class PlayerStatusBox:
             filename = os.path.basename(self.track) if self.track else 'none'
             truncated = truncate_filename(filename, content_width - 10)  # Reserve space for "Playing: "
             line1 = f" Playing: {truncated} "
-            line2 = f" State: {self.state} "
+            
+            # Show state and queue count
+            state_text = f"State: {self.state}"
+            if self.queue_count > 0:
+                state_text += f" | Queue: {self.queue_count}"
+            line2 = f" {state_text} "
         elif self.mode == "scanning":
             # Show scanning progress with truncated path
             scan_path = self.scan_path or '...'
@@ -57,7 +65,10 @@ class PlayerStatusBox:
         else:
             # Idle state
             line1 = " Status: Ready "
-            line2 = f" Songs loaded: {self.scan_count} "
+            queue_text = f"Songs: {self.scan_count}"
+            if self.queue_count > 0:
+                queue_text += f" | Queue: {self.queue_count}"
+            line2 = f" {queue_text} "
         
         # Use fixed width box
         top = "┌" + "─" * (box_width - 2) + "┐"

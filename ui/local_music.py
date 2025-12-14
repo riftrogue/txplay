@@ -65,7 +65,8 @@ class LocalMusicScreen(Screen):
             print()
             print(f" {self.paginator.get_page_info()}")
         
-        print("\n[Enter/→] Play   [Space] Play/Pause   [PgUp/PgDn] Page")
+        print("\n[Enter/→] Play   [Space] Play/Pause   [a] Add to Queue")
+        print("[PgUp/PgDn] Seek ±10s   [n] Next in Queue   [s] Stop")
         print("[←/b] Back   [q] Quit")
 
     def handle_input(self, key):
@@ -89,12 +90,12 @@ class LocalMusicScreen(Screen):
             return self
         
         # Page navigation (handle escape sequences for PgUp/PgDn)
-        if key == "\x1b[5~":  # Page Up
-            self.paginator.page_up()
+        if key == "\x1b[5~":  # Page Up - now used for seeking
+            self.app.player_seek(-10)
             return self
         
-        if key == "\x1b[6~":  # Page Down
-            self.paginator.page_down()
+        if key == "\x1b[6~":  # Page Down - now used for seeking
+            self.app.player_seek(10)
             return self
         
         if key == "ENTER" or key == "RIGHT":
@@ -111,6 +112,26 @@ class LocalMusicScreen(Screen):
                 selected = self.paginator.get_selected()
                 if selected:
                     self.app.player_resume_or_play(selected)
+            return self
+        
+        if key == "a":
+            # Add to queue
+            selected = self.paginator.get_selected()
+            if selected:
+                import os
+                title = os.path.basename(selected)
+                self.app.queue_add("local", selected, title)
+                # Could show temp message here later
+            return self
+        
+        if key == "n":
+            # Play next in queue
+            self.app.queue_play_next()
+            return self
+        
+        if key == "s":
+            # Stop playback
+            self.app.player_stop()
             return self
         
         if key == "b" or key == "LEFT":
