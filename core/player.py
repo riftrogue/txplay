@@ -117,22 +117,23 @@ class MPVPlayer:
             self._log(f"Sending: {command}")
             sock.sendall(cmd_json.encode('utf-8'))
             
-            # Read response
+            # Read FIRST line of response only (MPV sends multiple responses)
             response = b""
-            while True:
+            while b"\n" not in response:
                 chunk = sock.recv(4096)
                 if not chunk:
                     break
                 response += chunk
-                if b"\n" in response:
-                    break
             
             sock.close()
             
             if response:
-                result = json.loads(response.decode('utf-8').strip())
-                self._log(f"Response: {result}")
-                return result
+                # Parse only the first line
+                first_line = response.split(b"\n")[0]
+                if first_line:
+                    result = json.loads(first_line.decode('utf-8'))
+                    self._log(f"Response: {result}")
+                    return result
             return None
         except (socket.error, json.JSONDecodeError, OSError) as e:
             self._log(f"Command error: {e}")
@@ -183,17 +184,17 @@ class MPVPlayer:
             # Load and play the file
             result = self._send_command({"command": ["loadfile", target]})
             
-            # Check if load was successful
-            if result and result.get("error") == "success":
-                self._log(f"Successfully loaded: {target}")
-                self.current = target
-                self.state = "playing"
-                self.position = 0
-                self.duration = 0
-            else:
-                # Failed to load
-                self._log(f"Failed to load: {result}")
+            # Loadfile is async - it returns success immediately, playback starts in background
+            # Check if command was accepted (not if file loaded successfully)
+            if result is None or result.get("error") != "success":
+                self._log(f"Failed to send loadfile command: {result}")
                 raise RuntimeError(f"Failed to load file: {target}")
+            
+            self._log(f"Loadfile command accepted for: {target}")
+            self.current = target
+            self.state = "playing"
+            self.position = 0
+            self.duration = 0
         except Exception as e:
             # Reset state on error
             self._log(f"Play error: {e}")
