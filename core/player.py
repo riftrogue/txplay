@@ -59,23 +59,34 @@ class MPVPlayer:
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            preexec_fn=os.setpgrp if hasattr(os, 'setpgrp') else None  # Detach from terminal
         )
         self._log(f"MPV PID: {self.process.pid}")
         
-        # Wait for socket to be created (reduce timeout)
-        for i in range(20):  # 2 second timeout instead of 5
+        # Wait for socket to be created
+        socket_created = False
+        for i in range(30):  # 3 second timeout
             if os.path.exists(self.socket_path):
                 self._log(f"Socket created after {i*0.1:.1f}s")
-                time.sleep(0.05)  # Small delay to ensure socket is ready
+                time.sleep(0.1)  # Give socket time to be ready
+                socket_created = True
                 break
+            
+            # Check if process died
+            if self.process.poll() is not None:
+                stdout, stderr = self.process.communicate()
+                self._log(f"MPV died! stdout: {stdout.decode()}")
+                self._log(f"MPV stderr: {stderr.decode()}")
+                raise RuntimeError("MPV process died before socket creation")
+            
             time.sleep(0.1)
-        else:
-            # Socket not created - MPV failed to start
-            stdout, stderr = self.process.communicate(timeout=1)
-            self._log(f"MPV stdout: {stdout.decode()}")
+        
+        if not socket_created:
+            # Kill the process and raise error
+            self.process.terminate()
+            stdout, stderr = self.process.communicate(timeout=2)
+            self._log(f"MPV timeout! stdout: {stdout.decode()}")
             self._log(f"MPV stderr: {stderr.decode()}")
-            raise RuntimeError("MPV failed to start - socket not created")
+            raise RuntimeError("MPV socket creation timeout")
         
         # Start monitoring thread
         if not self._running:
