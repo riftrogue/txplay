@@ -12,9 +12,14 @@ import sys
 class MPVPlayer:
     """Real MPV player controlled via IPC socket."""
     
-    def __init__(self, socket_path="/tmp/txplay_mpv_socket"):
+    def __init__(self, socket_path=None):
         self.state = "stopped"  # stopped, playing, paused
         self.current = None
+        # Use Termux-compatible socket path
+        if socket_path is None:
+            # Try $TMPDIR first (Termux), fallback to $HOME, then /tmp
+            tmpdir = os.environ.get('TMPDIR') or os.path.expanduser('~')
+            socket_path = os.path.join(tmpdir, 'txplay_mpv_socket')
         self.socket_path = socket_path
         self.process = None
         self.socket = None
@@ -46,6 +51,7 @@ class MPVPlayer:
                 pass
         
         # Start MPV with IPC socket - optimized for Termux
+        self._log(f"Socket path: {self.socket_path}")
         self._log("Starting MPV process...")
         self.process = subprocess.Popen(
             [
