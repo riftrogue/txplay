@@ -13,7 +13,6 @@ class QueueManager:
     
     def __init__(self):
         self.items = []
-        self.current_index = -1
         self.load()
     
     def add(self, item_type, path_or_url, title, metadata=None):
@@ -52,7 +51,9 @@ class QueueManager:
         self.add("stream", url, title)
     
     def next(self):
-        """Get next item in queue.
+        """Get and remove next item from queue (FIFO).
+        
+        Song is removed as soon as this is called (when it starts playing).
         
         Returns:
             Next queue item dict or None if queue is empty
@@ -60,14 +61,13 @@ class QueueManager:
         if not self.items:
             return None
         
-        self.current_index += 1
-        if self.current_index >= len(self.items):
-            self.current_index = 0  # Loop back to start
-        
-        return self.items[self.current_index]
+        # Pop first item (FIFO - first in, first out)
+        item = self.items.pop(0)
+        self.save()
+        return item
     
     def peek_next(self):
-        """Peek at next item without advancing.
+        """Peek at next item without removing it.
         
         Returns:
             Next queue item dict or None
@@ -75,21 +75,17 @@ class QueueManager:
         if not self.items:
             return None
         
-        next_idx = (self.current_index + 1) % len(self.items)
-        return self.items[next_idx]
+        return self.items[0]
     
     def remove(self, index):
         """Remove item at index from queue."""
         if 0 <= index < len(self.items):
             self.items.pop(index)
-            if self.current_index >= index:
-                self.current_index -= 1
             self.save()
     
     def clear(self):
         """Clear entire queue."""
         self.items = []
-        self.current_index = -1
         self.save()
     
     def get_all(self):
@@ -101,19 +97,17 @@ class QueueManager:
         return len(self.items)
     
     def get_current(self):
-        """Get current item in queue."""
-        if 0 <= self.current_index < len(self.items):
-            return self.items[self.current_index]
-        return None
+        """Get next item in queue without removing it.
+        
+        Same as peek_next() - provided for compatibility.
+        """
+        return self.peek_next()
     
     def save(self):
         """Save queue to JSON file."""
         try:
             with open(QUEUE_FILE, 'w') as f:
-                json.dump({
-                    'items': self.items,
-                    'current_index': self.current_index
-                }, f, indent=2)
+                json.dump({'items': self.items}, f, indent=2)
         except IOError:
             pass  # Fail silently
     
@@ -126,6 +120,5 @@ class QueueManager:
             with open(QUEUE_FILE, 'r') as f:
                 data = json.load(f)
                 self.items = data.get('items', [])
-                self.current_index = data.get('current_index', -1)
         except (json.JSONDecodeError, IOError):
             pass  # Start with empty queue
