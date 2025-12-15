@@ -17,22 +17,23 @@ class LocalMusicScreen(Screen):
         self.paginator = Paginator(songs)
     
     def _load_songs(self):
-        """Load songs from cache based on current scan mode."""
-        config = load_config()
-        mode = config.get('scan_mode', 'termux')
-        
-        # Determine which cache to use
-        cache_map = {
-            'phone': PHONE_CACHE,
-            'termux': TERMUX_CACHE,
-            'custom': CUSTOM_CACHE,
-        }
-        
-        cache_file = cache_map.get(mode, TERMUX_CACHE)
+        git add ui/local_music.py && git commit -m "Merge all scanned music into unified alphabetically sorted list" && git push origin newb        git add ui/local_music.py && git commit -m "Merge all scanned music into unified alphabetically sorted list" && git push origin newb        """Load and merge songs from all cache files, sorted alphabetically."""
         scanner = Scanner()
-        files = scanner._load_cache(cache_file)
+        all_songs = []
         
-        return files if files else []
+        # Load from all cache files
+        for cache_file in [PHONE_CACHE, TERMUX_CACHE, CUSTOM_CACHE]:
+            files = scanner._load_cache(cache_file)
+            if files:
+                all_songs.extend(files)
+        
+        # Remove duplicates (same file path)
+        unique_songs = list(set(all_songs))
+        
+        # Sort alphabetically by filename
+        unique_songs.sort(key=lambda path: os.path.basename(path).lower())
+        
+        return unique_songs
 
     def render(self):
         """Draw the music list."""
