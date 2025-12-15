@@ -7,6 +7,8 @@ Main application loop and keyboard input handling.
 import sys
 import tty
 import termios
+import traceback
+import os
 
 from ui.home import HomeScreen
 from ui.player_status_box import PlayerStatusBox
@@ -138,33 +140,56 @@ class App:
         
         try:
             while self.running:
-                # Draw current screen
-                self.current_screen.render()
-                
-                # Get single keypress
-                key = get_key()
-                
-                # Global quit rule: q or ESC = instant exit from anywhere
-                if key == "q" or key == "ESC":
-                    self.quit()
-                    break
-                
-                # Let current screen handle the key and possibly switch screens
-                next_screen = self.current_screen.handle_input(key)
-                if next_screen is None:
-                    break
-                self.current_screen = next_screen
+                try:
+                    # Draw current screen
+                    self.current_screen.render()
+                    
+                    # Get single keypress
+                    key = get_key()
+                    
+                    # Global quit rule: q or ESC = instant exit from anywhere
+                    if key == "q" or key == "ESC":
+                        self.quit()
+                        break
+                    
+                    # Let current screen handle the key and possibly switch screens
+                    next_screen = self.current_screen.handle_input(key)
+                    if next_screen is None:
+                        break
+                    self.current_screen = next_screen
+                except Exception as e:
+                    # Show error to user
+                    show_cursor()
+                    print(f"\n\nError occurred: {e}")
+                    print("\nPress Enter to continue or Ctrl+C to quit...")
+                    try:
+                        input()
+                        hide_cursor()
+                    except KeyboardInterrupt:
+                        break
         finally:
             show_cursor()  # Always restore cursor on exit
 
 
 def main():
     """Entry point."""
-    app = App()
     try:
+        app = App()
         app.run()
     except KeyboardInterrupt:
-        app.quit()
+        try:
+            app.quit()
+        except:
+            pass
+    except Exception as e:
+        # Fatal error - show to user
+        show_cursor()
+        print(f"\n\n{'='*60}")
+        print(f"FATAL ERROR")
+        print(f"{'='*60}")
+        print(f"\n{e}\n")
+        print(f"{'='*60}\n")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
