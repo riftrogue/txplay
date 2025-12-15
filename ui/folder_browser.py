@@ -73,7 +73,7 @@ class FolderBrowserScreen(Screen):
                     print(f" {prefix} {item['name']}{suffix}")
         
         print("\n[→] Open folder   [Enter] Select this path and scan")
-        print("[←/b] Go back (cd ..)")
+        print("[←] Go up (cd ..)   [b] Back to Scan Options")
         print("[↑/↓] Navigate")
         print("[q] Cancel")
     
@@ -112,7 +112,8 @@ class FolderBrowserScreen(Screen):
             return self._select_current_path()
         
         # Go back
-        if key == "LEFT" or key == "b":
+        # Go back (LEFT arrow)
+        if key == "LEFT":
             parent = os.path.dirname(self.current_path)
             
             # Block going above home or to root
@@ -123,6 +124,11 @@ class FolderBrowserScreen(Screen):
             self.current_path = parent
             self._load_items()
             return self
+        
+        # Back to scan options (b key)
+        if key == "b":
+            from .scan_options import ScanOptionsScreen
+            return ScanOptionsScreen(self.app)
         
         if key == "q":
             # Cancel and go back
