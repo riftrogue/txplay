@@ -10,7 +10,8 @@ import termios
 
 from ui.home import HomeScreen
 from ui.player_status_box import PlayerStatusBox
-from core.player import DummyPlayer
+from core.player import MPVPlayer
+from core.queue import QueueManager
 from core.terminal_utils import hide_cursor, show_cursor
 
 
@@ -62,20 +63,33 @@ class App:
     """Main application class. Manages screens and player."""
     
     def __init__(self):
-        self.player = DummyPlayer()
+        self.player = MPVPlayer()
+        self.queue = QueueManager()
         self.player_box = PlayerStatusBox()
         self.current_screen = HomeScreen(self)
         self.running = True
+        
+        # Set up track-end callback to auto-advance queue
+        self.player.on_track_end = self._on_track_end
+    
+    def _on_track_end(self):
+        """Called when current track ends - auto-play next from queue."""
+        next_item = self.queue.next()
+        if next_item:
+            # Play next item from queue
+            target = next_item.get('path') or next_item.get('url')
+            self.player.play(target)
+            self.player_box.set_playing(track=target, state=self.player.state, queue_count=self.queue.get_count())
 
     def player_play(self, target):
         """Start playing a file or URL."""
         self.player.play(target)
-        self.player_box.set_playing(track=target, state=self.player.state)
+        self.player_box.set_playing(track=target, state=self.player.state, queue_count=self.queue.get_count())
 
     def player_pause(self):
         """Pause playback."""
         self.player.pause()
-        self.player_box.set_playing(track=self.player.current, state=self.player.state)
+        self.player_box.set_playing(track=self.player.current, state=self.player.state, queue_count=self.queue.get_count())
 
     def player_resume_or_play(self, target):
         """Resume if paused, otherwise start playing."""
@@ -83,13 +97,39 @@ class App:
             self.player.resume()
         else:
             self.player.play(target)
-        self.player_box.set_playing(track=self.player.current, state=self.player.state)
+        self.player_box.set_playing(track=self.player.current, state=self.player.state, queue_count=self.queue.get_count())
+    
+    def player_stop(self):
+        """Stop playback."""
+        self.player.stop()
+        self.player_box.set_idle(song_count=0, queue_count=self.queue.get_count())
+    
+    def player_seek(self, seconds):
+        """Seek forward/backward by seconds."""
+        self.player.seek(seconds)
+    
+    def queue_add(self, item_type, path_or_url, title):
+        """Add item to queue."""
+        if item_type == "local":
+            self.queue.add_local(path_or_url, title)
+        elif item_type == "youtube":
+            self.queue.add_youtube(path_or_url, title)
+        elif item_type == "stream":
+            self.queue.add_stream(path_or_url, title)
+    
+    def queue_play_next(self):
+        """Skip to next item in queue."""
+        next_item = self.queue.next()
+        if next_item:
+            target = next_item.get('path') or next_item.get('url')
+            self.player.play(target)
+            self.player_box.set_playing(track=target, state=self.player.state, queue_count=self.queue.get_count())
 
     def quit(self):
         """Quit the application. Clean up player if needed."""
         self.running = False
         show_cursor()  # Restore cursor visibility
-        # TODO: terminate mpv subprocess when real player is implemented
+        self.player.quit()  # Terminate MPV process
         print("\nExiting txplay...")
 
     def run(self):

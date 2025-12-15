@@ -27,7 +27,8 @@ class StreamsMenuScreen(Screen):
             else:
                 print(f" {s}")
         
-        print("\n[Enter] Play   [Space] Play/Pause   [d] Delete   [e] Edit   [b] Back   [q] Quit")
+        print("\n[Enter] Play   [Space] Play/Pause   [a] Add to Queue")
+        print("[PgUp/PgDn] Seek ±10s   [n] Next   [s] Stop   [b] Back   [q] Quit")
 
     def handle_input(self, key):
         """Handle keypresses."""
@@ -48,6 +49,29 @@ class StreamsMenuScreen(Screen):
                 self.app.player_pause()
             else:
                 self.app.player_resume_or_play(self.streams[self.idx])
+            return self
+        
+        if key == "\x1b[5~":  # Page Up - seek backward
+            self.app.player_seek(-10)
+            return self
+        
+        if key == "\x1b[6~":  # Page Down - seek forward
+            self.app.player_seek(10)
+            return self
+        
+        if key == "a":
+            # Add stream to queue
+            self.app.queue_add("stream", self.streams[self.idx], self.streams[self.idx])
+            return self
+        
+        if key == "n":
+            # Play next in queue
+            self.app.queue_play_next()
+            return self
+        
+        if key == "s":
+            # Stop playback
+            self.app.player_stop()
             return self
         
         if key == "b" or key == "LEFT":
