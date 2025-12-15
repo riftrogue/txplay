@@ -22,8 +22,10 @@ DEBUG_LOG = os.path.expanduser('~/.txplay_debug.log')
 
 
 def log_debug(message):
-    """Log debug message to file if DEBUG_MODE is enabled."""
+    """Log debug message to stderr if DEBUG_MODE is enabled."""
     if DEBUG_MODE:
+        print(f"[DEBUG] {message}", file=sys.stderr, flush=True)
+        # Also log to file
         try:
             with open(DEBUG_LOG, 'a') as f:
                 from datetime import datetime
@@ -34,7 +36,11 @@ def log_debug(message):
 
 
 def log_error(error_msg, exc_info=None):
-    """Log error to debug file."""
+    """Log error to stderr and debug file."""
+    # Always print errors to stderr
+    print(f"[ERROR] {error_msg}", file=sys.stderr, flush=True)
+    
+    # Log to file with traceback
     try:
         with open(DEBUG_LOG, 'a') as f:
             from datetime import datetime
