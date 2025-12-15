@@ -2,6 +2,16 @@
 # txplay launcher script
 
 INSTALL_DIR="$HOME/.txplay"
+BIN_DIR="$HOME/.local/bin"
+
+# Handle uninstall command
+if [ "$1" = "uninstall" ]; then
+    echo "Removing txplay..."
+    rm -rf "$INSTALL_DIR"
+    rm -f "$BIN_DIR/txplay"
+    echo "txplay removed"
+    exit 0
+fi
 
 if [ ! -d "$INSTALL_DIR" ]; then
     echo "Error: txplay not installed. Run the installer first:"
