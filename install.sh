@@ -7,7 +7,7 @@ set -e
 INSTALL_DIR="$HOME/.txplay"
 BIN_DIR="$HOME/.local/bin"
 REPO_URL="https://github.com/riftrogue/txplay.git"
-BRANCH="newb"
+BRANCH="main"
 
 echo "==> Installing txplay..."
 
