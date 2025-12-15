@@ -115,12 +115,15 @@ class FolderBrowserScreen(Screen):
             parent = os.path.dirname(self.current_path)
             home = os.path.expanduser("~")
             
-            # Allow going up unless we're at root or would go outside home
+            # If we can go up (not at boundary), do it
             if parent and parent != "/" and parent.startswith(home):
                 self.current_path = parent
                 self._load_items()
-            # If we can't go up, just stay here (don't block silently)
-            return self
+                return self
+            else:
+                # Can't go up anymore - return to Scan Options
+                from .scan_options import ScanOptionsScreen
+                return ScanOptionsScreen(self.app)
         
         return self
     
