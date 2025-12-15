@@ -17,7 +17,7 @@ class LocalMusicScreen(Screen):
         self.paginator = Paginator(songs)
     
     def _load_songs(self):
-        git add ui/local_music.py && git commit -m "Merge all scanned music into unified alphabetically sorted list" && git push origin newb        git add ui/local_music.py && git commit -m "Merge all scanned music into unified alphabetically sorted list" && git push origin newb        """Load and merge songs from all cache files, sorted alphabetically."""
+        """Load and merge songs from all cache files, sorted alphabetically."""
         scanner = Scanner()
         all_songs = []
         
