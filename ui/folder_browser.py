@@ -73,9 +73,8 @@ class FolderBrowserScreen(Screen):
                     print(f" {prefix} {item['name']}{suffix}")
         
         print("\n[→] Open folder   [Enter] Select this path and scan")
-        print("[←] Go up (cd ..)   [b] Back to Scan Options")
+        print("[←/b] Go up to parent directory")
         print("[↑/↓] Navigate")
-        print("[q] Cancel")
     
     def handle_input(self, key):
         """Handle keypresses."""
@@ -111,28 +110,17 @@ class FolderBrowserScreen(Screen):
         if key == "ENTER":
             return self._select_current_path()
         
-        # Go back (LEFT arrow)
-        if key == "LEFT":
+        # Go back to parent directory (LEFT arrow or 'b')
+        if key == "LEFT" or key == "b":
             parent = os.path.dirname(self.current_path)
             home = os.path.expanduser("~")
             
-            # Only block if trying to go above home directory
-            if parent == "/" or not parent.startswith(home):
-                return self  # Don't go above home
-            
-            self.current_path = parent
-            self._load_items()
+            # Allow going up unless we're at root or would go outside home
+            if parent and parent != "/" and parent.startswith(home):
+                self.current_path = parent
+                self._load_items()
+            # If we can't go up, just stay here (don't block silently)
             return self
-        
-        # Back to scan options (b key)
-        if key == "b":
-            from .scan_options import ScanOptionsScreen
-            return ScanOptionsScreen(self.app)
-        
-        if key == "q":
-            # Cancel and go back
-            from .scan_options import ScanOptionsScreen
-            return ScanOptionsScreen(self.app)
         
         return self
     
