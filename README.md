@@ -1,29 +1,39 @@
 # txplay
 
-A minimal TUI (Text User Interface) music player for Termux and Linux terminals.
+A minimal TUI (Text User Interface) music player for Termux on Android.
 
 ## Features
 
 - 🎵 **Real MPV playback** with IPC control
 - 📂 **Local music browsing** with automatic scanning
 - 🎼 **Universal queue system** supporting local files (YouTube ready)
-- ⚡ **Lightweight** - runs smoothly in Termux on Android
+- ⚡ **Lightweight** - runs smoothly in Termux
 - 🎹 **Simple keyboard controls** - no mouse needed
-- 📱 **Termux-optimized** - designed for mobile terminals
+- 📱 **Termux-optimized** - designed for Android terminals
 
 ## Installation
 
 ### Quick Install (One-liner)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/riftrogue/txplay/installation-test/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/riftrogue/txplay/main/install.sh | bash
+```
+
+### Requirements
+
+Install on Termux (Android):
+
+```bash
+pkg update
+pkg install python mpv git
+curl -fsSL https://raw.githubusercontent.com/riftrogue/txplay/main/install.sh | bash
 ```
 
 ### Manual Installation
 
 ```bash
 # Clone repository
-git clone -b installation-test https://github.com/riftrogue/txplay.git ~/.txplay
+git clone https://github.com/riftrogue/txplay.git ~/.txplay
 cd ~/.txplay
 
 # Install dependencies
@@ -41,30 +51,12 @@ source ~/.bashrc
 
 ## Requirements
 
+- **Termux** (Android terminal emulator)
 - Python 3.8+
 - MPV media player
 - Git
 
-### Install on Termux (Android)
-
-```bash
-pkg update
-pkg install python mpv git
-curl -fsSL https://raw.githubusercontent.com/riftrogue/txplay/installation-test/install.sh | bash
-```
-
-### Install on Linux
-
-```bash
-# Debian/Ubuntu
-sudo apt install python3 python3-pip mpv git
-
-# Arch Linux
-sudo pacman -S python python-pip mpv git
-
-# Then run installer
-curl -fsSL https://raw.githubusercontent.com/riftrogue/txplay/installation-test/install.sh | bash
-```
+**Note:** This app is currently designed for Termux on Android. The music scanner is optimized for Android storage paths (`/sdcard/Music`).
 
 ## Usage
 
@@ -77,7 +69,7 @@ txplay
 
 1. Navigate to **Scan Options** from the home menu
 2. Select your scan mode:
-   - **Termux**: Scans `/sdcard/Music` (Android)
+   - **Termux**: Scans `/sdcard/Music` (recommended)
    - **Phone**: Scans common Android music folders
    - **Custom**: Choose your own music directory
 
@@ -107,10 +99,18 @@ The status bar at the top shows:
 Re-run the installation command to update:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/riftrogue/txplay/installation-test/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/riftrogue/txplay/main/install.sh | bash
 ```
 
 The installer will automatically pull the latest changes.
+
+## Uninstalling
+
+```bash
+txplay uninstall
+```
+
+This removes `~/.txplay` and `~/.local/bin/txplay` completely.
 
 ## Project Structure
 
@@ -157,23 +157,20 @@ source ~/.bashrc
 
 Test MPV directly:
 ```bash
-mpv --no-video /path/to/song.mp3
+mpv --no-video /sdcard/Music/song.mp3
 ```
 
 If MPV doesn't work, reinstall it:
 ```bash
-# Termux
 pkg reinstall mpv
-
-# Linux
-sudo apt reinstall mpv  # or equivalent for your distro
 ```
 
 ### No music files found
 
 1. Check your scan path in Scan Options
-2. Ensure music files exist in the directory
+2. Ensure music files exist in `/sdcard/Music` or your custom directory
 3. Supported formats: mp3, m4a, flac, wav, ogg, opus
+4. Grant Termux storage permission: `termux-setup-storage`
 
 ## Development Status
 
@@ -201,3 +198,4 @@ This is a personal project under active development. Feel free to fork and custo
 ## Author
 
 Built for minimal, distraction-free music playback in terminal environments.
+Termux on Android
