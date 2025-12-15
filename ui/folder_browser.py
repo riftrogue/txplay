@@ -111,14 +111,13 @@ class FolderBrowserScreen(Screen):
         if key == "ENTER":
             return self._select_current_path()
         
-        # Go back
         # Go back (LEFT arrow)
         if key == "LEFT":
             parent = os.path.dirname(self.current_path)
-            
-            # Block going above home or to root
             home = os.path.expanduser("~")
-            if parent == "/" or len(parent) < len(home):
+            
+            # Only block if trying to go above home directory
+            if parent == "/" or not parent.startswith(home):
                 return self  # Don't go above home
             
             self.current_path = parent
