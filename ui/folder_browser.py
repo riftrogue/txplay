@@ -3,6 +3,7 @@
 import os
 from core.terminal_utils import clear_screen
 from .base_screen import Screen
+from constants import AUDIO_EXTENSIONS
 
 
 class FolderBrowserScreen(Screen):
@@ -11,21 +12,38 @@ class FolderBrowserScreen(Screen):
     def __init__(self, app, start_path=None):
         super().__init__(app)
         self.current_path = start_path or os.path.expanduser("~")
-        self.folders = []
+        self.items = []  # Combined folders and files
         self.idx = 0
-        self._load_folders()
+        self._load_items()
     
-    def _load_folders(self):
-        """Load subdirectories in current path."""
-        self.folders = []
+    def _load_items(self):
+        """Load subdirectories and audio files in current path."""
+        self.items = []
         
         try:
-            items = os.listdir(self.current_path)
-            for item in sorted(items):
-                full_path = os.path.join(self.current_path, item)
-                # Only show directories, skip hidden folders
-                if os.path.isdir(full_path) and not item.startswith('.'):
-                    self.folders.append(item)
+            entries = os.listdir(self.current_path)
+            folders = []
+            files = []
+            
+            for entry in sorted(entries, key=str.lower):
+                full_path = os.path.join(self.current_path, entry)
+                
+                # Skip hidden items
+                if entry.startswith('.'):
+                    continue
+                
+                # Add directories
+                if os.path.isdir(full_path):
+                    folders.append({'name': entry, 'type': 'folder'})
+                # Add audio files
+                elif os.path.isfile(full_path):
+                    _, ext = os.path.splitext(entry)
+                    if ext.lower() in AUDIO_EXTENSIONS:
+                        files.append({'name': entry, 'type': 'file'})
+            
+            # Folders first, then files
+            self.items = folders + files
+            
         except (PermissionError, OSError):
             pass  # Can't read this directory
         
@@ -41,46 +59,52 @@ class FolderBrowserScreen(Screen):
         print(f" Current: {self.current_path}")
         print("-" * 50)
         
-        if not self.folders:
-            print("\n (No subdirectories found)")
+        if not self.items:
+            print("\n (No folders or audio files found)")
         else:
-            for i, folder in enumerate(self.folders):
+            for i, item in enumerate(self.items):
+                prefix = "📁" if item['type'] == 'folder' else "🎵"
+                suffix = "/" if item['type'] == 'folder' else ""
+                
                 if i == self.idx:
                     # Inverted colors for selected item
-                    print(f"\033[7m 📁 {folder}/\033[0m")
+                    print(f"\033[7m {prefix} {item['name']}{suffix}\033[0m")
                 else:
-                    print(f" 📁 {folder}/")
+                    print(f" {prefix} {item['name']}{suffix}")
         
         print("\n[→] Open folder   [Enter] Select this path and scan")
         print("[←/b] Go back (cd ..)")
-        print("[↑/↓] Navigate folders")
+        print("[↑/↓] Navigate")
         print("[q] Cancel")
     
     def handle_input(self, key):
         """Handle keypresses."""
         # Navigate list up
         if key == "UP":
-            if self.folders:
+            if self.items:
                 self.idx = max(0, self.idx - 1)
             return self
         
         # Navigate list down
         if key == "DOWN":
-            if self.folders:
-                self.idx = min(len(self.folders) - 1, self.idx + 1)
+            if self.items:
+                self.idx = min(len(self.items) - 1, self.idx + 1)
             return self
         
-        # Enter folder (RIGHT arrow only)
-        if key == "RIGHT" and self.folders:
-            selected = self.folders[self.idx]
-            new_path = os.path.join(self.current_path, selected)
+        # Enter folder (RIGHT arrow only) - only works on folders
+        if key == "RIGHT" and self.items:
+            selected = self.items[self.idx]
             
-            # Block root directory
-            if new_path == "/" or new_path == "":
-                return self  # Don't allow entering root
-            
-            self.current_path = new_path
-            self._load_folders()
+            # Only enter if it's a folder
+            if selected['type'] == 'folder':
+                new_path = os.path.join(self.current_path, selected['name'])
+                
+                # Block root directory
+                if new_path == "/" or new_path == "":
+                    return self  # Don't allow entering root
+                
+                self.current_path = new_path
+                self._load_items()
             return self
         
         # Select current path and scan (ENTER key)
@@ -97,7 +121,7 @@ class FolderBrowserScreen(Screen):
                 return self  # Don't go above home
             
             self.current_path = parent
-            self._load_folders()
+            self._load_items()
             return self
         
         if key == "q":
