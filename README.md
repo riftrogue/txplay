@@ -4,12 +4,12 @@ A minimal TUI (Text User Interface) music player for Termux on Android.
 
 ## Features
 
-- 🎵 **Real MPV playback** with IPC control
-- 📂 **Local music browsing** with automatic scanning
-- 🎼 **Universal queue system** supporting local files (YouTube ready)
-- ⚡ **Lightweight** - runs smoothly in Termux
-- 🎹 **Simple keyboard controls** - no mouse needed
-- 📱 **Termux-optimized** - designed for Android terminals
+- Real MPV playback with IPC control
+- Local music browsing with automatic scanning
+- Universal queue system supporting local files (YouTube ready)
+- Lightweight - runs smoothly in Termux
+- Simple keyboard controls - no mouse needed
+- Termux-optimized - designed for Android terminals
 
 ## Installation
 
