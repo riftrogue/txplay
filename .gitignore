@@ -10,6 +10,8 @@ build/
 
 # Data files (user-specific caches and config)
 data/*.json
+data/config.json
+data/queue.json
 
 # IDE / Editor files
 .vscode/
