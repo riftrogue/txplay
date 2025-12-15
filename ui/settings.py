@@ -3,7 +3,7 @@
 import os
 from core.terminal_utils import clear_screen
 from .base_screen import Screen
-from constants import PHONE_CACHE, TERMUX_CACHE, CUSTOM_CACHE, DATA_DIR
+from constants import PHONE_CACHE, TERMUX_CACHE, CUSTOM_CACHE
 
 
 class SettingsScreen(Screen):

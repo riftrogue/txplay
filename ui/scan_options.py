@@ -5,7 +5,7 @@ from .base_screen import Screen
 from core.scanner import Scanner
 from core.config import load_config, save_config
 from constants import (
-    PHONE_CACHE, TERMUX_CACHE, CUSTOM_CACHE,
+    PHONE_CACHE, TERMUX_CACHE,
     PHONE_MUSIC_PATH, PHONE_DOWNLOAD_PATH, HOME_PATH
 )
 
