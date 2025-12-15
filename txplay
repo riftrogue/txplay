@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# txplay launcher script
+
+INSTALL_DIR="$HOME/.txplay"
+
+if [ ! -d "$INSTALL_DIR" ]; then
+    echo "Error: txplay not installed. Run the installer first:"
+    echo "curl -fsSL https://raw.githubusercontent.com/riftrogue/txplay/installation-test/install.sh | bash"
+    exit 1
+fi
+
+exec python3 "$INSTALL_DIR/txplay/app.py" "$@"
