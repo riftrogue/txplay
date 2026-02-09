@@ -28,26 +28,10 @@ install_system_deps() {
         fi
     done
     
-    # If missing packages, try to install
+    # If missing packages, install them
     if [ ${#deps_to_install[@]} -gt 0 ]; then
         echo "==> Installing missing dependencies: ${deps_to_install[*]}"
-        
-        # Check if pkg command exists (Termux)
-        if command -v pkg &> /dev/null; then
-            pkg install -y "${deps_to_install[@]}"
-        # Check if apt exists (Debian/Ubuntu)
-        elif command -v apt &> /dev/null; then
-            sudo apt update
-            sudo apt install -y "${deps_to_install[@]}"
-        # Check if yum exists (RHEL/CentOS)
-        elif command -v yum &> /dev/null; then
-            sudo yum install -y "${deps_to_install[@]}"
-        else
-            echo "Error: No supported package manager found (pkg, apt, yum)"
-            echo "Please install manually: ${deps_to_install[*]}"
-            exit 1
-        fi
-        
+        pkg install -y "${deps_to_install[@]}"
         echo "  ✓ Dependencies installed successfully"
     else
         echo "  ✓ All system dependencies already installed"
@@ -60,8 +44,7 @@ echo "==> Installing txplay..."
 install_system_deps
 
 # Create directories
-mkdir -p "$INSTALL_DIR"
-mkdir -p "$BIN_DIR"
+mkdir -p "$INSTALL_DIR" "$BIN_DIR"
 
 # Clone or update repository
 if [ -d "$INSTALL_DIR/.git" ]; then
@@ -78,9 +61,10 @@ fi
 
 # Install Python dependencies
 echo "==> Installing Python dependencies..."
-if ! python3 -m pip install --user -r requirements.txt; then
+python -m pip install --upgrade pip --user -q
+if ! python -m pip install --user -r requirements.txt; then
     echo "Error: Failed to install Python dependencies"
-    echo "Try manually: python3 -m pip install --user ytmusicapi yt-dlp"
+    echo "Try manually: python -m pip install --user ytmusicapi yt-dlp"
     exit 1
 fi
 echo "  ✓ Python dependencies installed"
@@ -94,16 +78,8 @@ chmod +x "$BIN_DIR/txplay"
 if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
     echo "==> Adding ~/.local/bin to PATH..."
     
-    # Detect shell config file
-    if [ -f "$HOME/.bashrc" ]; then
-        SHELL_CONFIG="$HOME/.bashrc"
-    elif [ -f "$HOME/.bash_profile" ]; then
-        SHELL_CONFIG="$HOME/.bash_profile"
-    elif [ -f "$HOME/.zshrc" ]; then
-        SHELL_CONFIG="$HOME/.zshrc"
-    else
-        SHELL_CONFIG="$HOME/.profile"
-    fi
+    # Termux primarily uses bash
+    SHELL_CONFIG="$HOME/.bashrc"
     
     # Add to PATH if not already there
     if ! grep -q 'export PATH="$HOME/.local/bin:$PATH"' "$SHELL_CONFIG" 2>/dev/null; then
@@ -111,8 +87,7 @@ if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
         echo '# Added by txplay installer' >> "$SHELL_CONFIG"
         echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_CONFIG"
         echo "   Added to $SHELL_CONFIG"
-        echo "   Run: source $SHELL_CONFIG"
-        echo "   Or restart your terminal"
+        echo "   Restart terminal or run: source $SHELL_CONFIG"
     fi
 fi
 
@@ -121,7 +96,4 @@ echo "✓ txplay installed successfully!"
 echo ""
 echo "To run txplay, type: txplay"
 echo ""
-if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
-    echo "NOTE: Restart your terminal or run:"
-    echo "  source ~/.bashrc"
-fi
+echo "NOTE: If command not found, restart your terminal"
