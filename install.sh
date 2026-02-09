@@ -30,8 +30,17 @@ install_system_deps() {
     
     # If missing packages, install them
     if [ ${#deps_to_install[@]} -gt 0 ]; then
-        echo "==> Installing missing dependencies: ${deps_to_install[*]}"
-        pkg install -y "${deps_to_install[@]}"
+        echo ""
+        echo "Missing dependencies: ${deps_to_install[*]}"
+        echo ""
+        read -p "Do you want to install these packages? (y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Installation cancelled."
+            exit 1
+        fi
+        echo "==> Installing: ${deps_to_install[*]}"
+        pkg install "${deps_to_install[@]}"
         echo "  ✓ Dependencies installed successfully"
     else
         echo "  ✓ All system dependencies already installed"
