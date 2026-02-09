@@ -4,9 +4,9 @@ from core.terminal_utils import clear_screen
 from .base_screen import Screen
 
 class HomeScreen(Screen):
-    """Main menu with options: Local Music, Saved Streams, Add Stream, Scan Options, Settings."""
+    """Main menu with options: YouTube Music, Local Music, Saved Streams, Add Stream, Scan Options, Settings."""
     
-    OPTIONS = ["Local Music", "Saved Streams", "Add Stream", "Scan Options", "Settings"]
+    OPTIONS = ["YouTube Music", "Local Music", "Saved Streams", "Add Stream", "Scan Options", "Settings"]
 
     def __init__(self, app):
         super().__init__(app)
@@ -41,6 +41,7 @@ class HomeScreen(Screen):
         
         if key == "ENTER" or key == "RIGHT":
             # Import here to avoid circular imports
+            from .ytmusic_search import YTMusicSearchScreen
             from .local_music import LocalMusicScreen
             from .streams_menu import StreamsMenuScreen
             from .add_stream import AddStreamScreen
@@ -48,6 +49,8 @@ class HomeScreen(Screen):
             from .settings import SettingsScreen
             
             sel = self.OPTIONS[self.idx]
+            if sel == "YouTube Music":
+                return YTMusicSearchScreen(self.app)
             if sel == "Local Music":
                 return LocalMusicScreen(self.app)
             if sel == "Saved Streams":

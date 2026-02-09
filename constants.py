@@ -26,6 +26,7 @@ PHONE_CACHE = os.path.join(DATA_DIR, "phone_music_cache.json")
 TERMUX_CACHE = os.path.join(DATA_DIR, "termux_music_cache.json")
 CUSTOM_CACHE = os.path.join(DATA_DIR, "custom_music_cache.json")
 CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
+STREAMS_FILE = os.path.join(DATA_DIR, "streams.json")
 
 # Ensure data directory exists
 os.makedirs(DATA_DIR, exist_ok=True)
