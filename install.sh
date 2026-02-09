@@ -33,7 +33,7 @@ install_system_deps() {
         echo ""
         echo "Missing dependencies: ${deps_to_install[*]}"
         echo ""
-        read -p "Do you want to install these packages? (y/n): " -n 1 -r
+        read -p "Do you want to install these packages? (y/n): " -n 1 -r < /dev/tty
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             echo "Installation cancelled."
