@@ -8,9 +8,13 @@ INSTALL_DIR="$HOME/.txplay"
 BIN_DIR="$HOME/.local/bin"
 REPO_URL="https://github.com/riftrogue/txplay.git"
 
-# Allow branch override via environment variable or argument
+# Auto-detect branch: this should match the branch this script is in
+# Update this value in each branch: "main" in main, "dev" in dev, etc.
+DEFAULT_BRANCH="main"
+
+# Allow override via environment variable or argument
 # Usage: BRANCH=test bash install.sh  OR  bash install.sh test
-BRANCH="${BRANCH:-${1:-main}}"
+BRANCH="${BRANCH:-${1:-$DEFAULT_BRANCH}}"
 
 # Function to check and auto-install system dependencies
 install_system_deps() {
@@ -60,7 +64,8 @@ if [ -d "$INSTALL_DIR/.git" ]; then
     echo "==> Updating existing installation..."
     cd "$INSTALL_DIR"
     git fetch origin
-    git checkout "$BRANCH"
+    current_branch=$(git rev-parse --abbrev-ref HEAD)
+    [ "$current_branch" != "$BRANCH" ] && git checkout "$BRANCH"
     git pull origin "$BRANCH"
 else
     echo "==> Cloning repository..."
@@ -70,9 +75,9 @@ fi
 
 # Install Python dependencies
 echo "==> Installing Python dependencies..."
-if ! python -m pip install --user -r requirements.txt; then
+if ! python -m pip install --user -q -r requirements.txt; then
     echo "Error: Failed to install Python dependencies"
-    echo "Try manually: python -m pip install --user ytmusicapi yt-dlp"
+    echo "Try: pkg upgrade python && python -m pip install --user ytmusicapi yt-dlp"
     exit 1
 fi
 echo "  ✓ Python dependencies installed"
