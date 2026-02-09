@@ -7,9 +7,57 @@ set -e
 INSTALL_DIR="$HOME/.txplay"
 BIN_DIR="$HOME/.local/bin"
 REPO_URL="https://github.com/riftrogue/txplay.git"
-BRANCH="main"
+
+# Allow branch override via environment variable or argument
+# Usage: BRANCH=test bash install.sh  OR  bash install.sh test
+BRANCH="${BRANCH:-${1:-main}}"
+
+# Function to check and auto-install system dependencies
+install_system_deps() {
+    local deps_to_install=()
+    
+    echo "==> Checking system dependencies..."
+    
+    # Check each required package
+    for cmd in git python mpv; do
+        if ! command -v $cmd &> /dev/null; then
+            echo "  ⚠ $cmd not found"
+            deps_to_install+=("$cmd")
+        else
+            echo "  ✓ $cmd found"
+        fi
+    done
+    
+    # If missing packages, try to install
+    if [ ${#deps_to_install[@]} -gt 0 ]; then
+        echo "==> Installing missing dependencies: ${deps_to_install[*]}"
+        
+        # Check if pkg command exists (Termux)
+        if command -v pkg &> /dev/null; then
+            pkg install -y "${deps_to_install[@]}"
+        # Check if apt exists (Debian/Ubuntu)
+        elif command -v apt &> /dev/null; then
+            sudo apt update
+            sudo apt install -y "${deps_to_install[@]}"
+        # Check if yum exists (RHEL/CentOS)
+        elif command -v yum &> /dev/null; then
+            sudo yum install -y "${deps_to_install[@]}"
+        else
+            echo "Error: No supported package manager found (pkg, apt, yum)"
+            echo "Please install manually: ${deps_to_install[*]}"
+            exit 1
+        fi
+        
+        echo "  ✓ Dependencies installed successfully"
+    else
+        echo "  ✓ All system dependencies already installed"
+    fi
+}
 
 echo "==> Installing txplay..."
+
+# Install system dependencies first
+install_system_deps
 
 # Create directories
 mkdir -p "$INSTALL_DIR"
@@ -30,11 +78,12 @@ fi
 
 # Install Python dependencies
 echo "==> Installing Python dependencies..."
-if command -v pip3 &> /dev/null; then
-    pip3 install --user -r requirements.txt
-else
-    python3 -m pip install --user -r requirements.txt
+if ! python3 -m pip install --user -r requirements.txt; then
+    echo "Error: Failed to install Python dependencies"
+    echo "Try manually: python3 -m pip install --user ytmusicapi yt-dlp"
+    exit 1
 fi
+echo "  ✓ Python dependencies installed"
 
 # Install launcher
 echo "==> Installing launcher..."
