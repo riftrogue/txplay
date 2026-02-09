@@ -61,7 +61,6 @@ fi
 
 # Install Python dependencies
 echo "==> Installing Python dependencies..."
-python -m pip install --upgrade pip --user -q
 if ! python -m pip install --user -r requirements.txt; then
     echo "Error: Failed to install Python dependencies"
     echo "Try manually: python -m pip install --user ytmusicapi yt-dlp"
