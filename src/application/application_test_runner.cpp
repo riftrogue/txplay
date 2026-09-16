@@ -168,30 +168,36 @@ int main() {
         std::cout << "  Q4 passed." << std::endl;
     }
 
-    // Q5: autoplay=false — EOF leaves queue intact
+    // Q5: queue always advances on EOF, even when autoplay=false
     {
-        std::cout << "Q5: autoplay=false — queue intact after EOF..." << std::endl;
+        std::cout << "Q5: queue advances on EOF regardless of autoplay flag..." << std::endl;
         Application q_app(paths, /*autoplay=*/false);
         wait_scan(q_app);
         auto t = q_app.get_tracks();
 
-        q_app.queue_add(t[0].id);
-        q_app.queue_add(t[1].id);
+        std::string first  = (t[0].filename < t[1].filename) ? t[0].id : t[1].id;
+        std::string second = (t[0].filename < t[1].filename) ? t[1].id : t[0].id;
 
-        // play t[0] and seek near end
-        q_app.play_track(t[0].id);
+        q_app.queue_add(second);
+        q_app.play_track(first);
         q_app.seek(999999);
 
-        bool stopped = wait_stopped(q_app, 400);
-        assert(stopped); // playback must have stopped
-
-        // Queue must be completely untouched
-        auto q = q_app.get_queue();
-        assert(q.size() == 2);
-        assert(q[0] == t[0].id);
-        assert(q[1] == t[1].id);
+        // Queue must still advance to second even though autoplay=false
+        bool advanced = false;
+        for (int i = 0; i < 400; ++i) {
+            q_app.update();
+            auto ct = q_app.get_current_track();
+            if (ct.has_value() && ct->id == second) {
+                advanced = true;
+                break;
+            }
+            std::this_thread::sleep_for(10ms);
+        }
+        assert(advanced);
+        assert(q_app.queue_is_empty());
         std::cout << "  Q5 passed." << std::endl;
     }
+
 
     // Q6: autoplay=true — EOF consumes next track from queue
     {

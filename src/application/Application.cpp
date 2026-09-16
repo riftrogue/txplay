@@ -130,22 +130,15 @@ void Application::update() {
     // Mark as processed immediately to prevent re-entry across frames.
     eof_processed_ = true;
 
-    if (!autoplay_) {
-        // Autoplay is off: stop cleanly. The queue is intentionally preserved.
-        audio_engine_.stop();
-        current_track_id_.clear();
-        return;
-    }
-
-    // Autoplay is on: attempt to play the next track from the queue.
+    // The queue always advances on EOF, regardless of the autoplay setting.
+    // If the queue is empty and autoplay is off, stop cleanly.
+    // If the queue is empty and autoplay is on, stop cleanly (future: repeat/shuffle).
     if (!advance_queue()) {
-        // Queue was empty (or all entries were invalid). Stop cleanly.
         audio_engine_.stop();
         current_track_id_.clear();
     }
-    // advance_queue() calls play_track() which resets eof_processed_ = false,
-    // so future EOFs from the newly started track will be handled correctly.
 }
+
 
 // ---------------------------------------------------------------------------
 // Queries
