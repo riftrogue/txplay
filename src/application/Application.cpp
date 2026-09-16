@@ -2,8 +2,8 @@
 
 namespace txplay::application {
 
-Application::Application(const std::vector<std::string>& initial_music_paths)
-    : config_paths_(initial_music_paths) 
+Application::Application(const std::vector<std::string>& initial_music_paths, bool autoplay)
+    : config_paths_(initial_music_paths), autoplay_(autoplay)
 {
     // Start initial scan
     library_.scan_async(config_paths_);
@@ -38,8 +38,10 @@ bool Application::play_track(const std::string& track_id) {
         return false;
     }
 
-    // 4. Update current_track_id on success
+    // 4. Update current_track_id and reset EOF guard on every successful start.
+    //    This covers both manual playback and autoplay advancement.
     current_track_id_ = track_id;
+    eof_processed_ = false;
     status_message_ = "Playing: " + target_track->title;
     return true;
 }
@@ -54,12 +56,10 @@ void Application::toggle_pause() {
 }
 
 void Application::seek(uint64_t ms) {
-    // Forward to AudioEngine
     audio_engine_.seek(ms);
 }
 
 void Application::set_volume(float volume) {
-    // Forward to AudioEngine
     audio_engine_.set_volume(volume);
 }
 
@@ -71,14 +71,85 @@ void Application::rescan_library() {
     }
 }
 
-void Application::update() {
-    // Called once per frame by the UI loop
-    if (audio_engine_.is_track_finished()) {
-        // TODO: Queue integration goes here.
-        // For now, without a Queue, we simply stop the engine to transition state.
-        audio_engine_.stop();
+// ---------------------------------------------------------------------------
+// Queue API
+// ---------------------------------------------------------------------------
+
+void Application::queue_add(const std::string& track_id) {
+    queue_.push_back(track_id);
+}
+
+void Application::queue_remove(size_t index) {
+    if (index < queue_.size()) {
+        queue_.erase(queue_.begin() + index);
     }
 }
+
+void Application::queue_clear() {
+    queue_.clear();
+}
+
+std::deque<std::string> Application::get_queue() const {
+    return queue_;
+}
+
+bool Application::queue_is_empty() const {
+    return queue_.empty();
+}
+
+// ---------------------------------------------------------------------------
+// Private helper: advance_queue
+// ---------------------------------------------------------------------------
+// Pops entries from the front of the queue, skipping any track IDs that are
+// no longer resolvable in the Library (e.g., deleted from disk after a rescan).
+// Returns true if a track was successfully started; false if queue exhausted.
+bool Application::advance_queue() {
+    while (!queue_.empty()) {
+        std::string next_id = queue_.front();
+        queue_.pop_front();
+
+        if (play_track(next_id)) {
+            return true;
+        }
+        // play_track already updated status_message_ with the error;
+        // we silently continue to the next entry.
+    }
+    return false;
+}
+
+// ---------------------------------------------------------------------------
+// update() — called once per frame (~30 FPS) by the UI loop
+// ---------------------------------------------------------------------------
+void Application::update() {
+    // Guard: only act on EOF once per track lifetime.
+    // eof_processed_ is reset in play_track() whenever a new track starts.
+    if (eof_processed_) return;
+
+    if (!audio_engine_.is_track_finished()) return;
+
+    // Mark as processed immediately to prevent re-entry across frames.
+    eof_processed_ = true;
+
+    if (!autoplay_) {
+        // Autoplay is off: stop cleanly. The queue is intentionally preserved.
+        audio_engine_.stop();
+        current_track_id_.clear();
+        return;
+    }
+
+    // Autoplay is on: attempt to play the next track from the queue.
+    if (!advance_queue()) {
+        // Queue was empty (or all entries were invalid). Stop cleanly.
+        audio_engine_.stop();
+        current_track_id_.clear();
+    }
+    // advance_queue() calls play_track() which resets eof_processed_ = false,
+    // so future EOFs from the newly started track will be handled correctly.
+}
+
+// ---------------------------------------------------------------------------
+// Queries
+// ---------------------------------------------------------------------------
 
 std::string Application::get_status_message() const {
     return status_message_;
@@ -105,7 +176,7 @@ std::optional<library::Track> Application::get_current_track() const {
         }
     }
 
-    // Track disappeared from library
+    // Track disappeared from library (deleted + rescanned)
     return std::nullopt;
 }
 

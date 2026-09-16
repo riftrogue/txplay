@@ -20,6 +20,7 @@ Development is currently active. Playback, seeking, background library scanning,
 - **Audio Decoding**: Handled natively by miniaudio (no system audio daemons or heavy multimedia frameworks required).
 - **Format Support**: MP3, WAV, and FLAC playback.
 - **Responsive Controls**: Global keybindings, mouse click-to-play, hover highlighting, and seeking.
+- **Queue & Autoplay**: Add tracks to a live FIFO queue. Enable `autoplay=true` in config for continuous, uninterrupted playback. Missing queued tracks are skipped automatically.
 - **Visualizer**: Real-time FFT terminal audio visualizer running on a dedicated thread.
 - **Portability**: Verified native support for Fedora/Linux and Termux/Android.
 
@@ -67,10 +68,13 @@ seek_backward=left
 - **r**: Rescan and refresh the library (Global)
 - **q**: Quit the application (Global)
 - **Tab** / **Shift+Tab**: Cycle keyboard focus between UI zones
-- **Up / Down**: Navigate library rows
+- **Up / Down**: Navigate library or queue rows
 - **Enter**: Play the currently selected track
 - **Left / Right**: Seek playback (-5s / +5s)
 - **Mouse Click**: Moves selection and immediately plays the clicked track
+- **a**: Add highlighted Library track to Queue (configurable via `queue_add`)
+- **d**: Remove selected Queue entry — Queue pane must have focus (configurable via `queue_remove`)
+- **c**: Clear entire Queue — Queue pane must have focus (configurable via `queue_clear`)
 
 ## Architecture Overview
 

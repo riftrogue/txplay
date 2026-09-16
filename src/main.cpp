@@ -78,9 +78,11 @@ int main() {
     txplay::config::Config config(config_path);
     std::vector<std::string> paths = config.get_music_paths();
     auto vis_config = config.get_visualizer();
+    auto nav_config = config.get_navigation();
+    auto playback_config = config.get_playback();
 
     // 2. Application Layer
-    txplay::application::Application app(paths);
+    txplay::application::Application app(paths, playback_config.autoplay);
 
     // 3. UI State
     auto screen = ScreenInteractive::Fullscreen();
@@ -91,10 +93,7 @@ int main() {
     std::vector<txplay::library::Track> filtered_tracks; // The corresponding track models
 
     int selected_queue = 0;
-    std::vector<std::string> queue_items = {
-        "Queue is not yet implemented.",
-        "(Placeholder Data)"
-    };
+    std::vector<std::string> queue_items; // rebuilt each frame from app.get_queue()
 
     std::string search_query;
     auto search_input = Input(&search_query, "Type to search...");
@@ -156,7 +155,34 @@ int main() {
         // App update hook
         app.update();
 
-        // Synchronize Library Data
+        // Synchronize Queue Data (rebuilt each frame)
+        {
+            auto q = app.get_queue();
+            queue_items.clear();
+            if (q.empty()) {
+                queue_items.push_back("[ Queue is empty ]");
+            } else {
+                // Resolve each queue ID to a display title via the current library
+                auto all_tracks = app.get_tracks();
+                for (const auto& qid : q) {
+                    bool found = false;
+                    for (const auto& t : all_tracks) {
+                        if (t.id == qid) {
+                            queue_items.push_back(t.title);
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        queue_items.push_back("[missing] " + qid.substr(qid.rfind('/') + 1));
+                    }
+                }
+            }
+            if (selected_queue >= (int)queue_items.size()) {
+                selected_queue = std::max(0, (int)queue_items.size() - 1);
+            }
+        }
+
         auto all_tracks = app.get_tracks();
         filtered_tracks.clear();
         library_items.clear();
@@ -263,7 +289,7 @@ int main() {
 
         // 4. Lists
         auto library_box = window(text("Library"), wrapped_library_menu->Render() | vscroll_indicator | frame) | flex;
-        auto queue_box = window(text("Queue (Placeholder)"), queue_menu->Render() | vscroll_indicator | frame) | flex;
+        auto queue_box = window(text("Queue"), queue_menu->Render() | vscroll_indicator | frame) | flex;
 
         // Responsive Logic
         Element final_layout;
@@ -289,10 +315,25 @@ int main() {
             Component queue_;
             std::atomic<bool>& keep_running_;
             ScreenInteractive& screen_;
+            // Configurable queue key characters (single-char string)
+            std::string key_queue_add_;
+            std::string key_queue_remove_;
+            std::string key_queue_clear_;
+            // References to UI state needed for queue operations
+            int& selected_library_;
+            int& selected_queue_;
+            std::vector<txplay::library::Track>& filtered_tracks_;
 
-            Wrapper(Component child, txplay::application::Application& app, Component search, Component lib, Component queue, std::atomic<bool>& keep, ScreenInteractive& screen) 
-                : app_(app), search_(search), lib_(lib), queue_(queue), keep_running_(keep), screen_(screen) { 
-                Add(child); 
+            Wrapper(Component child, txplay::application::Application& app, Component search, Component lib, Component queue,
+                    std::atomic<bool>& keep, ScreenInteractive& screen,
+                    const txplay::config::NavigationConfig& nav,
+                    int& sel_lib, int& sel_queue, std::vector<txplay::library::Track>& filt)
+                : app_(app), search_(search), lib_(lib), queue_(queue),
+                  keep_running_(keep), screen_(screen),
+                  key_queue_add_(nav.queue_add), key_queue_remove_(nav.queue_remove), key_queue_clear_(nav.queue_clear),
+                  selected_library_(sel_lib), selected_queue_(sel_queue), filtered_tracks_(filt)
+            {
+                Add(child);
             }
 
             bool OnEvent(Event event) override {
@@ -349,10 +390,37 @@ int main() {
                     return true;
                 }
 
+                // Queue shortcuts — active when search is not focused
+                if (!search_->Focused()) {
+                    // queue_add: add selected Library track to Queue
+                    if (key_queue_add_.size() == 1 && event == Event::Character(key_queue_add_[0])) {
+                        if (selected_library_ >= 0 && selected_library_ < (int)filtered_tracks_.size()) {
+                            app_.queue_add(filtered_tracks_[selected_library_].id);
+                        }
+                        return true;
+                    }
+                    // queue_remove: remove selected Queue entry
+                    if (key_queue_remove_.size() == 1 && event == Event::Character(key_queue_remove_[0])) {
+                        if (queue_->Focused()) {
+                            app_.queue_remove(selected_queue_);
+                        }
+                        return true;
+                    }
+                    // queue_clear: clear entire Queue
+                    if (key_queue_clear_.size() == 1 && event == Event::Character(key_queue_clear_[0])) {
+                        if (queue_->Focused()) {
+                            app_.queue_clear();
+                        }
+                        return true;
+                    }
+                }
+
                 return false;
             }
         };
-        return Make<Wrapper>(child, app, search_input, wrapped_library_menu, queue_menu, keep_running, screen);
+        return Make<Wrapper>(child, app, search_input, wrapped_library_menu, queue_menu,
+                             keep_running, screen, nav_config,
+                             selected_library, selected_queue, filtered_tracks);
     };
 
     auto final_app = global_shortcuts(renderer);

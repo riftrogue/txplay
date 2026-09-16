@@ -1,6 +1,9 @@
 [Library]
-music_path=/path/to/your/music
-music_path=/another/optional/path
+music_path=/home/riftrogue/Music/songs/
+
+[Playback]
+# Set to true to automatically play the next queued track when the current one ends.
+autoplay=true
 
 [Visualizer]
 enabled=true
@@ -15,6 +18,10 @@ refresh=r
 quit=q
 seek_forward=right
 seek_backward=left
+# Queue keybindings (single character)
+queue_add=a
+queue_remove=d
+queue_clear=c
 
 [Characters]
 border_horizontal=─

@@ -61,6 +61,9 @@ Config::Config(const std::string& config_file_path) {
                 else if (key == "quit") navigation_.quit = value;
                 else if (key == "seek_forward") navigation_.seek_forward = value;
                 else if (key == "seek_backward") navigation_.seek_backward = value;
+                else if (key == "queue_add") navigation_.queue_add = value;
+                else if (key == "queue_remove") navigation_.queue_remove = value;
+                else if (key == "queue_clear") navigation_.queue_clear = value;
             } else if (current_section == "Characters") {
                 if (key == "top_left") characters_.top_left = value;
                 else if (key == "top_right") characters_.top_right = value;
@@ -68,6 +71,8 @@ Config::Config(const std::string& config_file_path) {
                 else if (key == "bottom_right") characters_.bottom_right = value;
                 else if (key == "horizontal") characters_.horizontal = value;
                 else if (key == "vertical") characters_.vertical = value;
+            } else if (current_section == "Playback") {
+                if (key == "autoplay") playback_.autoplay = (value == "true" || value == "1");
             }
         }
     }
