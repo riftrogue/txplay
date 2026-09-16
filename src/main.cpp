@@ -168,7 +168,7 @@ int main() {
                 to_lower(track.artist).find(query_lower) != std::string::npos) {
                 
                 filtered_tracks.push_back(track);
-                library_items.push_back(track.title + " - " + track.artist);
+                library_items.push_back(track.title);
             }
         }
         
@@ -216,13 +216,13 @@ int main() {
             int seek_bar_width = std::max(10, width - 4); // inner width
 
             now_playing_large = vbox({
-                text(status_str + " Now Playing: " + current_track->title + " - " + current_track->artist) | bold | color(Color::Cyan),
+                text(status_str + " Now Playing: " + current_track->title) | bold | color(Color::Cyan),
                 text("  " + state_text + " · " + time_str) | color(Color::GrayLight),
                 build_seek_bar(progress_val, seek_bar_width) | color(Color::GrayDark)
             }) | border;
 
             now_playing_compact = vbox({
-                text(status_str + " " + current_track->title + " - " + current_track->artist) | bold | color(Color::Cyan),
+                text(status_str + " " + current_track->title) | bold | color(Color::Cyan),
                 text("  " + time_str) | color(Color::GrayLight),
                 build_seek_bar(progress_val, seek_bar_width) | color(Color::GrayDark)
             }) | border;
