@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <csignal>
 #include <cstdio>
+#include <fstream>
 
 #include "config/Config.hpp"
 #include "application/Application.hpp"
@@ -66,7 +67,15 @@ int main() {
     std::signal(SIGINT, signal_handler);
 
     // 1. Config Layer
-    txplay::config::Config config("config.txt");
+    std::string config_path = "config.txt";
+    if (const char* home = std::getenv("HOME")) {
+        std::string user_config = std::string(home) + "/.config/txplay/config.txt";
+        // If the user config exists, prefer it over the local one.
+        if (std::ifstream(user_config).good()) {
+            config_path = user_config;
+        }
+    }
+    txplay::config::Config config(config_path);
     std::vector<std::string> paths = config.get_music_paths();
     auto vis_config = config.get_visualizer();
 
