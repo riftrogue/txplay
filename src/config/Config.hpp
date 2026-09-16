@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include "common/PathUtils.hpp"
 
 namespace txplay::config {
 
@@ -41,6 +42,11 @@ struct CharacterConfig {
 class Config {
 public:
     explicit Config(const std::string& config_file_path);
+
+    // Resolves the user config path in priority order:
+    //   1. ~/.config/txplay/config.txt  (installed user config)
+    //   2. ./config.txt                 (dev fallback)
+    static std::string resolve_user_config_path();
 
     std::vector<std::string> get_music_paths() const { return music_paths_; }
     VisualizerConfig get_visualizer() const { return visualizer_; }

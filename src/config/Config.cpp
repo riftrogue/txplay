@@ -17,6 +17,15 @@ static std::string trim(const std::string& s) {
     return std::string(start, end + 1);
 }
 
+// static
+std::string Config::resolve_user_config_path() {
+    std::string user_config = txplay::common::expand_tilde("~/.config/txplay/config.txt");
+    if (std::ifstream(user_config).good()) {
+        return user_config;
+    }
+    return "config.txt"; // dev fallback
+}
+
 Config::Config(const std::string& config_file_path) {
     std::ifstream file(config_file_path);
     if (!file.is_open()) {
@@ -26,7 +35,7 @@ Config::Config(const std::string& config_file_path) {
 
     std::string current_section = "";
     std::string line;
-    
+
     while (std::getline(file, line)) {
         line = trim(line);
         if (line.empty() || line[0] == '#') {

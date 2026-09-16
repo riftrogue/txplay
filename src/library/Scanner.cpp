@@ -1,4 +1,5 @@
 #include "Scanner.hpp"
+#include "common/PathUtils.hpp"
 #include <filesystem>
 #include <unordered_set>
 #include <algorithm>
@@ -7,23 +8,6 @@
 
 namespace txplay::library {
 namespace fs = std::filesystem;
-
-std::string Scanner::expand_tilde(const std::string& path) {
-    if (path.empty() || path[0] != '~') {
-        return path;
-    }
-    const char* home = std::getenv("HOME");
-    if (!home) {
-        return path; // Fallback if HOME is not set
-    }
-    if (path.length() == 1) {
-        return home;
-    }
-    if (path[1] == '/') {
-        return std::string(home) + path.substr(1);
-    }
-    return path;
-}
 
 bool Scanner::is_supported_format(const std::string& extension) {
     std::string ext = extension;
@@ -52,7 +36,7 @@ ScanResult Scanner::scan(const std::vector<std::string>& config_paths) {
     std::unordered_set<std::string> seen_canonical_paths;
 
     for (const auto& raw_path : config_paths) {
-        std::string expanded = expand_tilde(raw_path);
+        std::string expanded = txplay::common::expand_tilde(raw_path);
         fs::path root_path(expanded);
 
         std::error_code ec;

@@ -5,18 +5,13 @@
 #include <memory>
 #include <cstdint>
 #include "SpscRingBuffer.hpp"
+#include "PlaybackState.hpp"
 
 namespace txplay::audio {
 
 class AudioDevice;
 class DecoderThread;
 class Analyzer;
-
-enum class PlaybackState {
-    Stopped,
-    Playing,
-    Paused
-};
 
 class AudioEngine {
 public:

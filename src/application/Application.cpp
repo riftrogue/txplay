@@ -1,4 +1,5 @@
 #include "Application.hpp"
+#include "audio/Analyzer.hpp"
 
 namespace txplay::application {
 
@@ -197,8 +198,10 @@ std::vector<std::string> Application::get_library_errors() const {
     return library_.get_last_errors();
 }
 
-std::shared_ptr<audio::Analyzer> Application::get_analyzer() const {
-    return audio_engine_.get_analyzer();
+std::vector<float> Application::get_visualizer_magnitudes() const {
+    auto analyzer = audio_engine_.get_analyzer();
+    if (!analyzer) return {};
+    return analyzer->get_latest_window();
 }
 
 } // namespace txplay::application

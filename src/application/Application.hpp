@@ -6,8 +6,9 @@
 #include <optional>
 #include <memory>
 
-#include "../library/Library.hpp"
-#include "../audio/AudioEngine.hpp"
+#include "audio/PlaybackState.hpp"
+#include "library/Library.hpp"
+#include "audio/AudioEngine.hpp"
 
 namespace txplay::application {
 
@@ -59,8 +60,10 @@ public:
     std::vector<library::Track> get_tracks() const;
     std::vector<std::string> get_library_errors() const;
 
-    // Audio Analyzer access for UI
-    std::shared_ptr<audio::Analyzer> get_analyzer() const;
+    // Visualizer data for UI — returns latest FFT magnitude window.
+    // Returns an empty vector when nothing is playing or analyzer is unavailable.
+    // The UI should NOT access the Analyzer directly.
+    std::vector<float> get_visualizer_magnitudes() const;
 
 private:
     // Advance autoplay: attempt to play next valid track from queue.
