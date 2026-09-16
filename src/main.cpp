@@ -337,11 +337,12 @@ int main() {
             }
 
             bool OnEvent(Event event) override {
-                // Focus Management (Intercept BEFORE to override default non-wrapping behavior)
+                // Focus Management — Tab cycles only between Library and Queue.
+                // Search is exclusively triggered by '/'.
                 if (event == Event::Tab || event == Event::TabReverse) {
-                    std::vector<Component> focusables = { search_, lib_, queue_ };
+                    std::vector<Component> focusables = { lib_, queue_ };
                     int current = 0;
-                    for (int i = 0; i < focusables.size(); i++) {
+                    for (int i = 0; i < (int)focusables.size(); i++) {
                         if (focusables[i]->Focused()) { current = i; break; }
                     }
                     if (event == Event::Tab) {
