@@ -1,201 +1,177 @@
-# txplay
+# Txplay
 
-A minimal TUI (Text User Interface) music player for Termux on Android.
+Txplay v2.0
+
+Txplay is a lightweight terminal music player written in C++17, designed around local-first playback, low dependencies, and a responsive terminal UI.
 
 ## Features
 
-- Real MPV playback with IPC control
-- Local music browsing with automatic scanning
-- Universal queue system supporting local files (YouTube ready)
-- Lightweight - runs smoothly in Termux
-- Simple keyboard controls - no mouse needed
-- Termux-optimized - designed for Android terminals
-
-## Installation
-
-### Quick Install (One-liner)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/riftrogue/txplay/main/install.sh | bash
-```
-
-### Requirements
-
-Install on Termux (Android):
-
-```bash
-pkg update
-pkg install python mpv git
-curl -fsSL https://raw.githubusercontent.com/riftrogue/txplay/main/install.sh | bash
-```
-
-### Manual Installation
-
-```bash
-# Clone repository
-git clone https://github.com/riftrogue/txplay.git ~/.txplay
-cd ~/.txplay
-
-# Install dependencies
-pip3 install --user -r requirements.txt
-
-# Install launcher
-mkdir -p ~/.local/bin
-cp txplay ~/.local/bin/txplay
-chmod +x ~/.local/bin/txplay
-
-# Add to PATH (if needed)
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-```
+- **C++17 Architecture**: Fast, multi-threaded, and resource-efficient.
+- **Terminal UI**: Built on FTXUI for a robust, responsive, and beautiful interface.
+- **Local-first Playback**: Configurable local music directories with asynchronous scanning.
+- **Audio Decoding**: Handled natively by miniaudio (no system audio daemons or heavy multimedia frameworks required).
+- **Format Support**: MP3, WAV, FLAC playback.
+- **Responsive Controls**: Mouse interaction, keyboard navigation, seeking, and playback state display.
+- **Visualizer**: Real-time terminal audio visualizer with configurable styles.
+- **Portability**: Verified support for Fedora/Linux and Termux/Android.
 
 ## Requirements
 
-- **Termux** (Android terminal emulator)
-- Python 3.8+
-- MPV media player
-- Git
+- A modern terminal emulator
+- Linux (e.g. Fedora, Ubuntu, Arch) or Android (via Termux)
 
-**Note:** This app is currently designed for Termux on Android. The music scanner is optimized for Android storage paths (`/sdcard/Music`).
+For building from source:
+- `cmake` (>= 3.11)
+- `clang` or `gcc` (C++17 support)
+- `make`
+- `git`
 
-## Usage
+## Installation
 
-Launch the player:
-```bash
-txplay
-```
-
-### First Run Setup
-
-1. Navigate to **Scan Options** from the home menu
-2. Select your scan mode:
-   - **Termux**: Scans `/sdcard/Music` (recommended)
-   - **Phone**: Scans common Android music folders
-   - **Custom**: Choose your own music directory
-
-### Keyboard Controls
-
-#### Global Controls
-- **Arrow Keys** - Navigate menus
-- **Enter** - Select/Play
-- **q** - Quit or go back
-
-#### Local Music Browser
-- **Enter** - Play selected track
-- **a** - Add track to queue
-- **n** - Play next track in queue
-- **s** - Stop playback
-- **PgUp** - Seek backward 10 seconds
-- **PgDn** - Seek forward 10 seconds
-
-#### Player Status
-The status bar at the top shows:
-- Currently playing track
-- Playback position and duration
-- Queue count
-
-## Updating
-
-Re-run the installation command to update:
+You can install or update Txplay directly using the provided install script. It will detect your environment, configure the build, compile from source, and install the binary cleanly.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/riftrogue/txplay/main/install.sh | bash
 ```
 
-The installer will automatically pull the latest changes.
+**Where does it install?**
+- **Linux**: `~/.local/bin/txplay`
+- **Termux**: `$PREFIX/bin/txplay`
 
-## Uninstalling
-
-```bash
-txplay uninstall
-```
-
-This removes `~/.txplay` and `~/.local/bin/txplay` completely.
-
-## Project Structure
-
-```
-txplay/
-├── txplay/              # Main application directory
-│   ├── app.py          # Entry point
-│   ├── constants.py    # Configuration constants
-│   ├── core/           # Core functionality
-│   │   ├── player.py   # MPV IPC player
-│   │   ├── queue.py    # Universal queue manager
-│   │   ├── scanner.py  # Music file scanner
-│   │   └── config.py   # Configuration management
-│   ├── ui/             # User interface screens
-│   └── data/           # User data (config, queue)
-├── requirements.txt    # Python dependencies
-├── install.sh         # Installation script
-└── txplay             # Launcher script
-```
+The source code is cloned and built locally in `~/.txplay`. Running the installer again will safely update your installation from the latest source without overwriting your configuration.
 
 ## Configuration
 
-Config file location: `~/.txplay/txplay/data/config.json`
+Txplay uses a simple `config.txt` file for configuration. 
 
-Example:
-```json
-{
-  "scan_mode": "custom",
-  "custom_scan_path": "/sdcard/Music"
-}
+**Location:**
+- **Linux**: `~/.config/txplay/config.txt`
+- **Termux**: `$HOME/.config/txplay/config.txt`
+
+The installer will create a default configuration if one does not exist. Txplay plays files directly from their configured locations and does not copy your music files into its own directory.
+
+**Example `config.txt`:**
+```ini
+[Library]
+music_path=~/Music
+music_path=~/Downloads
+
+[Visualizer]
+enabled=true
+style=bars
+height=6
+
+[Navigation]
+play=enter
+pause=space
+search=/
+refresh=r
+quit=q
+seek_forward=right
+seek_backward=left
 ```
 
-## Troubleshooting
+## Controls
 
-### Command not found: txplay
+Txplay provides a focused and intuitive interaction model.
 
-Ensure `~/.local/bin` is in your PATH:
+### Global Shortcuts
+*(Active when the Search input is not focused)*
+- **Space** or **p**: Toggle play/pause
+- **/**: Focus the Search box
+- **r**: Rescan and refresh the library
+- **q**: Quit the application
+- **Tab** / **Shift+Tab**: Cycle keyboard focus between UI zones (Search -> Library -> Queue)
+
+### Library Navigation
+- **Up / Down**: Move the selection arrow
+- **Enter**: Play the currently selected track
+- **Left / Right**: Seek playback (-5s / +5s)
+
+### Search Context
+- When the Search box holds focus, it securely owns text-entry events. `Space`, `/`, `r`, `Left`, and `Right` will act as normal alphanumeric typing and cursor movement.
+
+### Mouse
+- **Hover**: Passively highlights library rows
+- **Click**: Moves selection and immediately plays the clicked track
+
+## Supported Formats
+
+- MP3
+- WAV
+- FLAC
+
+## Building from source
+
+If you prefer to build manually instead of using the installer:
+
 ```bash
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
+git clone https://github.com/riftrogue/txplay.git
+cd txplay
+
+# Configure and build
+cmake -S . -B build
+cmake --build build -j$(nproc)
+
+# Run Txplay
+./build/txplay
 ```
 
-### MPV not playing audio
-
-Test MPV directly:
+Regression tests can be run via:
 ```bash
-mpv --no-video /sdcard/Music/song.mp3
+./build/audio_test_runner experiments/audio-test/test.mp3
+./build/library_test_runner
+./build/application_test_runner
 ```
 
-If MPV doesn't work, reinstall it:
-```bash
-pkg reinstall mpv
+**Dependencies:**
+- `miniaudio` is vendored directly into the repository.
+- `FTXUI` is automatically fetched and built via CMake.
+
+## Project Structure
+```
+txplay/
+├── CMakeLists.txt        # Build configuration
+├── docs/                 # Detailed architectural documentation
+├── experiments/          # Regression test fixtures
+├── src/                  # Core application source code
+└── third_party/          # Vendored dependencies (miniaudio)
 ```
 
-### No music files found
+## Current Status
 
-1. Check your scan path in Scan Options
-2. Ensure music files exist in `/sdcard/Music` or your custom directory
-3. Supported formats: mp3, m4a, flac, wav, ogg, opus
-4. Grant Termux storage permission: `termux-setup-storage`
+**Txplay v2.0**
 
-## Development Status
+This release marks the completion of the C++17 rebuild from the legacy Python/MPV implementation. The core playback engine, terminal integration, and library structure are stable.
 
-**Phase 1 Complete:** ✅
-- MPV IPC player with real playback
-- Universal queue system
-- Local music browsing
-- Keyboard controls and seeking
-- Auto-advance on track end
+*Unfinished/Planned Features:*
+- **Queue**: Planned (UI placeholder exists, but not implemented)
+- **Lyrics**: Not implemented
+- **Online playback**: Not implemented
+- **Metadata parsing**: Not implemented (Currently falls back to filename extraction)
 
-**Planned Features:**
-- YouTube Music integration
-- Queue management UI
-- Playlist support
-- Enhanced status display
+## Architecture
+
+Txplay is structured around explicit ownership, zero bloat, and responsive threading:
+
+```
+FTXUI (Terminal UI)
+  ↓
+Application (State Orchestration)
+  ├── Config (INI Parsing)
+  ├── Library (Async File Scanning)
+  └── AudioEngine (Playback Management)
+          ↓
+      miniaudio (Decoding & Output)
+```
+
+- **Library** discovers configured local files asynchronously.
+- **Application** orchestrates UI and backend state cleanly.
+- **AudioEngine** handles threaded playback, seeking, and visualizer bridging.
+- **miniaudio** handles all raw decoding and hardware output.
+- **FTXUI** manages the terminal DOM and event loops.
+
+For deeper technical details, see the `docs/` directory.
 
 ## License
-
-MIT License - See LICENSE file for details
-
-## Contributing
-
-This is a personal project under active development. Feel free to fork and customize for your needs.
-
-## Author
-
-Built for minimal, distraction-free music playback in terminal environments.
-Termux on Android
+MIT License

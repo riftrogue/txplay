@@ -1,37 +1,8 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Distribution / packaging
-*.egg-info/
-dist/
 build/
-
-# Data files (user-specific caches and config)
-data/*.json
-data/config.json
-data/queue.json
-
-# IDE / Editor files
+experiments/library-test/
+experiments/app-test/
+.cache/
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Virtual environments
-venv/
-env/
-ENV/
-.venv/
-
-# MPV socket (if we use IPC later)
-*.sock
-
-# Logs
 *.log
+docs/
