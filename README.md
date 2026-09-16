@@ -1,54 +1,43 @@
 # Txplay
 
-Txplay v2.0
+**Txplay v2.0**
 
-Txplay is a lightweight terminal music player written in C++17, designed around local-first playback, low dependencies, and a responsive terminal UI.
+Txplay is a fast, lightweight terminal music player written in C++17. It is designed entirely around local-first playback, low dependencies, and a highly responsive terminal UI.
+
+## Current Status
+
+**Stable Release (v2.0)**
+
+Txplay has been completely rebuilt from its legacy Python/MPV prototype into a standalone, statically-compiled C++17 application. The core architecture is solid, leveraging `miniaudio` for native decoding and `FTXUI` for a fluid dashboard. 
+
+Development is currently active. Playback, seeking, background library scanning, and visualization are fully implemented. The Queue and Auto-Next functionalities are currently under active development.
 
 ## Features
 
-- **C++17 Architecture**: Fast, multi-threaded, and resource-efficient.
-- **Terminal UI**: Built on FTXUI for a robust, responsive, and beautiful interface.
-- **Local-first Playback**: Configurable local music directories with asynchronous scanning.
+- **C++17 Architecture**: Multi-threaded and resource-efficient with strict RAII ownership.
+- **Terminal UI**: Built on FTXUI for a robust, mouse-aware, and beautiful interface.
+- **Local-first Playback**: Asynchronous, background scanning of configured music directories.
 - **Audio Decoding**: Handled natively by miniaudio (no system audio daemons or heavy multimedia frameworks required).
-- **Format Support**: MP3, WAV, FLAC playback.
-- **Responsive Controls**: Mouse interaction, keyboard navigation, seeking, and playback state display.
-- **Visualizer**: Real-time terminal audio visualizer with configurable styles.
-- **Portability**: Verified support for Fedora/Linux and Termux/Android.
-
-## Requirements
-
-- A modern terminal emulator
-- Linux (e.g. Fedora, Ubuntu, Arch) or Android (via Termux)
-
-For building from source:
-- `cmake` (>= 3.11)
-- `clang` or `gcc` (C++17 support)
-- `make`
-- `git`
+- **Format Support**: MP3, WAV, and FLAC playback.
+- **Responsive Controls**: Global keybindings, mouse click-to-play, hover highlighting, and seeking.
+- **Visualizer**: Real-time FFT terminal audio visualizer running on a dedicated thread.
+- **Portability**: Verified native support for Fedora/Linux and Termux/Android.
 
 ## Installation
 
-You can install or update Txplay directly using the provided install script. It will detect your environment, configure the build, compile from source, and install the binary cleanly.
+Txplay is distributed with an `install.sh` script that automatically detects your platform (Linux or Termux), checks for minimal build dependencies (CMake/Compiler), compiles the C++ code, and installs the binary cleanly.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/riftrogue/txplay/main/install.sh | bash
 ```
 
-**Where does it install?**
+**Binary Locations:**
 - **Linux**: `~/.local/bin/txplay`
 - **Termux**: `$PREFIX/bin/txplay`
 
-The source code is cloned and built locally in `~/.txplay`. Running the installer again will safely update your installation from the latest source without overwriting your configuration.
-
 ## Configuration
 
-Txplay uses a simple `config.txt` file for configuration. 
-
-**Location:**
-- **Linux**: `~/.config/txplay/config.txt`
-- **Termux**: `$HOME/.config/txplay/config.txt`
-
-The installer will create a default configuration if one does not exist. Txplay plays files directly from their configured locations and does not copy your music files into its own directory.
+Configuration is managed via a plaintext INI file located at `~/.config/txplay/config.txt`. The installer creates a safe default if one doesn't exist.
 
 **Example `config.txt`:**
 ```ini
@@ -73,37 +62,23 @@ seek_backward=left
 
 ## Controls
 
-Txplay provides a focused and intuitive interaction model.
-
-### Global Shortcuts
-*(Active when the Search input is not focused)*
-- **Space** or **p**: Toggle play/pause
-- **/**: Focus the Search box
-- **r**: Rescan and refresh the library
-- **q**: Quit the application
-- **Tab** / **Shift+Tab**: Cycle keyboard focus between UI zones (Search -> Library -> Queue)
-
-### Library Navigation
-- **Up / Down**: Move the selection arrow
+- **Space** or **p**: Toggle play/pause (Global)
+- **/**: Focus the Search box (Global)
+- **r**: Rescan and refresh the library (Global)
+- **q**: Quit the application (Global)
+- **Tab** / **Shift+Tab**: Cycle keyboard focus between UI zones
+- **Up / Down**: Navigate library rows
 - **Enter**: Play the currently selected track
 - **Left / Right**: Seek playback (-5s / +5s)
+- **Mouse Click**: Moves selection and immediately plays the clicked track
 
-### Search Context
-- When the Search box holds focus, it securely owns text-entry events. `Space`, `/`, `r`, `Left`, and `Right` will act as normal alphanumeric typing and cursor movement.
+## Architecture Overview
 
-### Mouse
-- **Hover**: Passively highlights library rows
-- **Click**: Moves selection and immediately plays the clicked track
+Txplay enforces a strict boundary between the UI, the Application state orchestrator, and the backend hardware engines. It relies on a lock-free SPSC Ring Buffer to pass audio from the decoder thread to the hardware callback safely. 
 
-## Supported Formats
+For detailed technical documentation regarding Threading, Architecture, and Development, consult the [docs/](./docs/) directory.
 
-- MP3
-- WAV
-- FLAC
-
-## Building from source
-
-If you prefer to build manually instead of using the installer:
+## Building from source (Developers)
 
 ```bash
 git clone https://github.com/riftrogue/txplay.git
@@ -123,55 +98,6 @@ Regression tests can be run via:
 ./build/library_test_runner
 ./build/application_test_runner
 ```
-
-**Dependencies:**
-- `miniaudio` is vendored directly into the repository.
-- `FTXUI` is automatically fetched and built via CMake.
-
-## Project Structure
-```
-txplay/
-├── CMakeLists.txt        # Build configuration
-├── docs/                 # Detailed architectural documentation
-├── experiments/          # Regression test fixtures
-├── src/                  # Core application source code
-└── third_party/          # Vendored dependencies (miniaudio)
-```
-
-## Current Status
-
-**Txplay v2.0**
-
-This release marks the completion of the C++17 rebuild from the legacy Python/MPV implementation. The core playback engine, terminal integration, and library structure are stable.
-
-*Unfinished/Planned Features:*
-- **Queue**: Planned (UI placeholder exists, but not implemented)
-- **Lyrics**: Not implemented
-- **Online playback**: Not implemented
-- **Metadata parsing**: Not implemented (Currently falls back to filename extraction)
-
-## Architecture
-
-Txplay is structured around explicit ownership, zero bloat, and responsive threading:
-
-```
-FTXUI (Terminal UI)
-  ↓
-Application (State Orchestration)
-  ├── Config (INI Parsing)
-  ├── Library (Async File Scanning)
-  └── AudioEngine (Playback Management)
-          ↓
-      miniaudio (Decoding & Output)
-```
-
-- **Library** discovers configured local files asynchronously.
-- **Application** orchestrates UI and backend state cleanly.
-- **AudioEngine** handles threaded playback, seeking, and visualizer bridging.
-- **miniaudio** handles all raw decoding and hardware output.
-- **FTXUI** manages the terminal DOM and event loops.
-
-For deeper technical details, see the `docs/` directory.
 
 ## License
 MIT License
