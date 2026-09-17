@@ -1,0 +1,5 @@
+
+[Library]
+music_path=~/Music
+music_path=/mnt/external
+music_path=~/Podcasts

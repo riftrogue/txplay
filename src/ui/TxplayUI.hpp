@@ -19,6 +19,7 @@ namespace txplay::ui {
 //
 // Dependency boundary:
 //   TxplayUI → Application (public API only)
+//   TxplayUI → Config (reads user preferences; future Settings writes via Config setters)
 //   TxplayUI does NOT include or reference AudioEngine, Analyzer, Library, etc.
 //
 // The caller (main.cpp) retains ownership of signal handling.
@@ -28,9 +29,8 @@ class TxplayUI {
 public:
     TxplayUI(
         txplay::application::Application& app,
-        const txplay::config::VisualizerConfig& vis_config,
-        const txplay::config::NavigationConfig& nav_config,
-        volatile std::sig_atomic_t& shutdown_requested
+        txplay::config::Config&           config,
+        volatile std::sig_atomic_t&       shutdown_requested
     );
     ~TxplayUI(); // joins ticker_thread_
 
@@ -44,8 +44,7 @@ private:
 
     // --- References ---
     txplay::application::Application& app_;
-    txplay::config::VisualizerConfig  vis_config_;
-    txplay::config::NavigationConfig  nav_config_;
+    txplay::config::Config&           config_;         // single source of truth for user prefs
     volatile std::sig_atomic_t&       shutdown_requested_;
 
     // --- UI selection state ---

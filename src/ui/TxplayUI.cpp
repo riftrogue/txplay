@@ -1,6 +1,7 @@
 #include "TxplayUI.hpp"
 #include "Util.hpp"
 #include "Widgets.hpp"
+#include "Visualizer.hpp"
 
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/loop.hpp>
@@ -19,18 +20,34 @@ using namespace std::chrono_literals;
 namespace txplay::ui {
 
 // ---------------------------------------------------------------------------
+// match_keybind() — translates a config key-name string to an FTXUI event
+// ---------------------------------------------------------------------------
+// Supported named keys: right, left, up, down, space, enter, escape.
+// Single-character strings are matched as character events.
+// Any other string returns false (unknown/unsupported key name).
+static bool match_keybind(const Event& event, const std::string& key) {
+    if (key == "right")  return event == Event::ArrowRight;
+    if (key == "left")   return event == Event::ArrowLeft;
+    if (key == "up")     return event == Event::ArrowUp;
+    if (key == "down")   return event == Event::ArrowDown;
+    if (key == "space")  return event == Event::Character(' ');
+    if (key == "enter")  return event == Event::Return;
+    if (key == "escape") return event == Event::Escape;
+    if (key.size() == 1) return event == Event::Character(key[0]);
+    return false;
+}
+
+// ---------------------------------------------------------------------------
 // Constructor / Destructor
 // ---------------------------------------------------------------------------
 
 TxplayUI::TxplayUI(
     txplay::application::Application& app,
-    const txplay::config::VisualizerConfig& vis_config,
-    const txplay::config::NavigationConfig& nav_config,
-    volatile std::sig_atomic_t& shutdown_requested
+    txplay::config::Config&           config,
+    volatile std::sig_atomic_t&       shutdown_requested
 )
     : app_(app)
-    , vis_config_(vis_config)
-    , nav_config_(nav_config)
+    , config_(config)
     , shutdown_requested_(shutdown_requested)
     , screen_(ScreenInteractive::Fullscreen())
 {}
@@ -238,25 +255,15 @@ ftxui::Component TxplayUI::build_ui() {
 
         // ---- Visualizer ----------------------------------------------------
         Element visualizer = text("");
-        if (vis_config_.enabled) {
-            Elements vis_elements;
-            int max_vis_bars = std::max(1, width - 4);
-
-            // Application encapsulates the Analyzer — UI only sees magnitudes.
-            auto mags  = app_.get_visualizer_magnitudes();
-            int  bands = std::min(static_cast<int>(mags.size()), max_vis_bars);
-            for (int i = 0; i < bands; i++) {
-                float val = std::min(1.0f, std::abs(mags[i]) * 2.0f);
-                vis_elements.push_back(gaugeUp(val) | color(Color::Green) | flex);
-            }
-
-            while (static_cast<int>(vis_elements.size()) < max_vis_bars) {
-                vis_elements.push_back(gaugeUp(0.0f) | color(Color::Green) | flex);
-            }
-
-            visualizer = hbox(std::move(vis_elements))
-                | size(HEIGHT, EQUAL, vis_config_.height)
-                | border;
+        if (config_.visualizer().enabled) {
+            auto mags      = app_.get_visualizer_magnitudes();
+            int  vis_width = std::max(1, width - 4);
+            visualizer = render_visualizer(
+                mags,
+                config_.visualizer().style,
+                vis_width,
+                config_.visualizer().height
+            ) | border;
         }
 
         // ---- Search / Lists ------------------------------------------------
@@ -280,17 +287,17 @@ ftxui::Component TxplayUI::build_ui() {
 
     // ---- Global shortcuts + focus management -------------------------------
     // Local ComponentBase subclass that intercepts events before the container.
+    // Reads keybindings from config_ on every event so that runtime changes
+    // (future Settings UI) take effect immediately without rebuilding the UI.
     class GlobalShortcuts : public ComponentBase {
     public:
         txplay::application::Application& app_;
+        txplay::config::Config&           config_;
         Component search_;
         Component lib_;
         Component queue_;
         std::atomic<bool>&                keep_running_;
         ftxui::ScreenInteractive&         screen_;
-        std::string key_queue_add_;
-        std::string key_queue_remove_;
-        std::string key_queue_clear_;
         int&                              selected_library_;
         int&                              selected_queue_;
         std::vector<txplay::library::Track>& filtered_tracks_;
@@ -298,18 +305,15 @@ ftxui::Component TxplayUI::build_ui() {
         GlobalShortcuts(
             Component child,
             txplay::application::Application& app,
+            txplay::config::Config& config,
             Component search, Component lib, Component queue,
             std::atomic<bool>& keep_running,
             ftxui::ScreenInteractive& screen,
-            const txplay::config::NavigationConfig& nav,
             int& sel_lib, int& sel_queue,
             std::vector<txplay::library::Track>& filtered
         )
-            : app_(app), search_(search), lib_(lib), queue_(queue)
+            : app_(app), config_(config), search_(search), lib_(lib), queue_(queue)
             , keep_running_(keep_running), screen_(screen)
-            , key_queue_add_(nav.queue_add)
-            , key_queue_remove_(nav.queue_remove)
-            , key_queue_clear_(nav.queue_clear)
             , selected_library_(sel_lib)
             , selected_queue_(sel_queue)
             , filtered_tracks_(filtered)
@@ -319,7 +323,7 @@ ftxui::Component TxplayUI::build_ui() {
 
         bool OnEvent(Event event) override {
             // Tab cycles only between Library and Queue.
-            // Search is reached exclusively via '/'.
+            // Search is reached exclusively via the search keybind ('/').
             if (event == Event::Tab || event == Event::TabReverse) {
                 std::vector<Component> focusables = { lib_, queue_ };
                 int current = 0;
@@ -333,15 +337,23 @@ ftxui::Component TxplayUI::build_ui() {
                 return true;
             }
 
+            // Read keybindings from config on every event for runtime mutability.
+            const auto& kb = config_.keybinds();
+
+            // Read seek amount from config on every event (supports runtime changes).
+            const uint64_t seek_ms =
+                static_cast<uint64_t>(config_.playback().seek_seconds) * 1000ULL;
+
             // Seek intercept — before container steals Left/Right for focus.
+            // Driven by config-defined seek_forward / seek_backward key names.
             if (!search_->Focused()) {
-                if (event == Event::ArrowRight) {
-                    app_.seek(app_.get_position_ms() + 5000);
+                if (match_keybind(event, kb.seek_forward)) {
+                    app_.seek(app_.get_position_ms() + seek_ms);
                     return true;
                 }
-                if (event == Event::ArrowLeft) {
+                if (match_keybind(event, kb.seek_backward)) {
                     uint64_t pos = app_.get_position_ms();
-                    app_.seek(pos > 5000 ? pos - 5000 : 0);
+                    app_.seek(pos > seek_ms ? pos - seek_ms : 0);
                     return true;
                 }
             }
@@ -349,42 +361,47 @@ ftxui::Component TxplayUI::build_ui() {
             // Let the focused component handle the event first.
             if (ComponentBase::OnEvent(event)) return true;
 
-            // Global shortcuts (only if not consumed above).
-            if (event == Event::Character('q') || event == Event::Escape) {
+
+            // Global shortcuts — quit
+            if (event == Event::Escape ||
+                match_keybind(event, kb.quit)) {
                 keep_running_ = false;
                 screen_.Exit();
                 return true;
             }
-            if (event == Event::Character('p') || event == Event::Character(' ')) {
+
+            // Global shortcuts — pause/resume
+            if (match_keybind(event, kb.pause)) {
                 app_.toggle_pause();
                 return true;
             }
-            if (event == Event::Character('/')) {
+
+            // Global shortcuts — focus search
+            if (match_keybind(event, kb.search)) {
                 search_->TakeFocus();
                 return true;
             }
-            if (event == Event::Character('r')) {
+
+            // Global shortcuts — rescan library
+            if (match_keybind(event, kb.refresh)) {
                 app_.rescan_library();
                 return true;
             }
 
             // Queue shortcuts (disabled when search has focus).
             if (!search_->Focused()) {
-                if (key_queue_add_.size() == 1 &&
-                    event == Event::Character(key_queue_add_[0])) {
+                if (match_keybind(event, kb.queue_add)) {
                     if (selected_library_ >= 0 &&
                         selected_library_ < static_cast<int>(filtered_tracks_.size())) {
                         app_.queue_add(filtered_tracks_[selected_library_].id);
                     }
                     return true;
                 }
-                if (key_queue_remove_.size() == 1 &&
-                    event == Event::Character(key_queue_remove_[0])) {
+                if (match_keybind(event, kb.queue_remove)) {
                     if (queue_->Focused()) app_.queue_remove(selected_queue_);
                     return true;
                 }
-                if (key_queue_clear_.size() == 1 &&
-                    event == Event::Character(key_queue_clear_[0])) {
+                if (match_keybind(event, kb.queue_clear)) {
                     if (queue_->Focused()) app_.queue_clear();
                     return true;
                 }
@@ -397,9 +414,9 @@ ftxui::Component TxplayUI::build_ui() {
     return Make<GlobalShortcuts>(
         renderer,
         app_,
+        config_,
         search_input, wrapped_library_menu, queue_menu,
         keep_running_, screen_,
-        nav_config_,
         selected_library_, selected_queue_, filtered_tracks_
     );
 }

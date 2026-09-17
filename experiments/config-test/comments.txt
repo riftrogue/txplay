@@ -1,0 +1,8 @@
+
+# This is a comment
+[Playback]
+# autoplay is disabled by default
+autoplay=true
+
+# seek step
+seek_seconds=7

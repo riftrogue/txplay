@@ -1,0 +1,4 @@
+[Playback]
+autoplay=true
+autoplay_limit=false
+autoplay_limit_value=50

@@ -4,10 +4,15 @@
 #include <filesystem>
 #include <fstream>
 #include "Application.hpp"
+#include "config/Config.hpp"
 
 using namespace txplay::application;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 // Helper: wait for app to finish scanning
 static void wait_scan(Application& app) {
@@ -24,10 +29,31 @@ static bool wait_stopped(Application& app, int iterations = 400) {
     return false;
 }
 
+// Helper: build a minimal Config with a given set of paths and autoplay flags.
+static txplay::config::Config make_test_config(
+    const std::vector<std::string>& paths,
+    bool autoplay = false,
+    bool autoplay_limit = false,
+    int  autoplay_limit_value = 10)
+{
+    static const std::string tmp_cfg = "experiments/app-test/tmp_test_config.txt";
+    {
+        std::ofstream out(tmp_cfg);
+        out << "[Library]\n";
+        for (const auto& p : paths)
+            out << "music_path=" << p << "\n";
+        out << "[Playback]\n";
+        out << "autoplay=" << (autoplay ? "true" : "false") << "\n";
+        out << "autoplay_limit=" << (autoplay_limit ? "true" : "false") << "\n";
+        out << "autoplay_limit_value=" << autoplay_limit_value << "\n";
+    }
+    return txplay::config::Config(tmp_cfg);
+}
+
 int main() {
     std::cout << "--- Application Test Runner ---" << std::endl;
 
-    std::string test_dir = "experiments/app-test/root";
+    std::string test_dir   = "experiments/app-test/root";
     std::string source_mp3 = "experiments/audio-test/test.mp3";
     std::string target_mp3  = test_dir + "/test.mp3";
     std::string target_mp3b = test_dir + "/test_b.mp3";
@@ -43,7 +69,8 @@ int main() {
     // =========================================================================
     // 1-3. Construction, State, and Auto-Scan
     // =========================================================================
-    Application app(paths);
+    auto main_config = make_test_config(paths);
+    Application app(main_config);
     assert(app.get_state() == ApplicationState::Ready);
 
     std::cout << "Waiting for initial scan..." << std::endl;
@@ -98,7 +125,8 @@ int main() {
     // Q1: Queue API basics (add/next/empty)
     {
         std::cout << "Q1: basic FIFO add/get..." << std::endl;
-        Application q_app(paths);
+        auto cfg = make_test_config(paths);
+        Application q_app(cfg);
         wait_scan(q_app);
 
         assert(q_app.queue_is_empty());
@@ -118,7 +146,8 @@ int main() {
     // Q2: queue_remove
     {
         std::cout << "Q2: queue_remove..." << std::endl;
-        Application q_app(paths);
+        auto cfg = make_test_config(paths);
+        Application q_app(cfg);
         wait_scan(q_app);
 
         q_app.queue_add("B");
@@ -136,7 +165,8 @@ int main() {
     // Q3: queue_clear
     {
         std::cout << "Q3: queue_clear..." << std::endl;
-        Application q_app(paths);
+        auto cfg = make_test_config(paths);
+        Application q_app(cfg);
         wait_scan(q_app);
 
         q_app.queue_add("B");
@@ -149,7 +179,8 @@ int main() {
     // Q4: Manual playback independence — queue must NOT change
     {
         std::cout << "Q4: manual play does not modify queue..." << std::endl;
-        Application q_app(paths);
+        auto cfg = make_test_config(paths);
+        Application q_app(cfg);
         wait_scan(q_app);
         auto t = q_app.get_tracks();
         assert(t.size() == 2);
@@ -171,7 +202,8 @@ int main() {
     // Q5: queue always advances on EOF, even when autoplay=false
     {
         std::cout << "Q5: queue advances on EOF regardless of autoplay flag..." << std::endl;
-        Application q_app(paths, /*autoplay=*/false);
+        auto cfg = make_test_config(paths, /*autoplay=*/false);
+        Application q_app(cfg);
         wait_scan(q_app);
         auto t = q_app.get_tracks();
 
@@ -202,7 +234,8 @@ int main() {
     // Q6: autoplay=true — EOF consumes next track from queue
     {
         std::cout << "Q6: autoplay=true — EOF advances queue..." << std::endl;
-        Application q_app(paths, /*autoplay=*/true);
+        auto cfg = make_test_config(paths, /*autoplay=*/true);
+        Application q_app(cfg);
         wait_scan(q_app);
         auto t = q_app.get_tracks();
 
@@ -231,14 +264,20 @@ int main() {
         std::cout << "  Q6 passed." << std::endl;
     }
 
-    // Q7: autoplay=true, empty queue — EOF stops cleanly
+    // Q7: autoplay=true, empty queue — EOF stops cleanly (no local tracks to pick)
+    // NOTE: The test library has 2 tracks (A and B). We play track B (last one
+    // in sorted order) so advance_autoplay finds no next track and stops.
     {
-        std::cout << "Q7: autoplay=true, empty queue — stops cleanly..." << std::endl;
-        Application q_app(paths, /*autoplay=*/true);
+        std::cout << "Q7: autoplay=true, empty queue, at end of library — stops..." << std::endl;
+        auto cfg = make_test_config(paths, /*autoplay=*/true);
+        Application q_app(cfg);
         wait_scan(q_app);
         auto t = q_app.get_tracks();
 
-        q_app.play_track(t[0].id);
+        // Sort: play the last track so there is no next track
+        std::string last = (t[0].filename < t[1].filename) ? t[1].id : t[0].id;
+
+        q_app.play_track(last);
         q_app.seek(999999);
 
         bool stopped = wait_stopped(q_app, 400);
@@ -250,7 +289,8 @@ int main() {
     // Q8: autoplay=true, invalid queued track — skipped safely
     {
         std::cout << "Q8: invalid queued track skipped safely..." << std::endl;
-        Application q_app(paths, /*autoplay=*/true);
+        auto cfg = make_test_config(paths, /*autoplay=*/true);
+        Application q_app(cfg);
         wait_scan(q_app);
         auto t = q_app.get_tracks();
 
@@ -280,11 +320,145 @@ int main() {
     }
 
     // =========================================================================
-    // 11. current_track survives a Library rescan when track still exists
+    // AUTOPLAY TESTS
+    // =========================================================================
+    std::cout << "\n--- Autoplay Tests ---" << std::endl;
+
+    // Q9: autoplay=false, empty queue → stops after current track
+    {
+        std::cout << "Q9: autoplay=false + empty queue → stop..." << std::endl;
+        auto cfg = make_test_config(paths, /*autoplay=*/false);
+        Application q_app(cfg);
+        wait_scan(q_app);
+        auto t = q_app.get_tracks();
+        std::string first = (t[0].filename < t[1].filename) ? t[0].id : t[1].id;
+
+        q_app.play_track(first);
+        q_app.seek(999999);
+
+        bool stopped = wait_stopped(q_app, 400);
+        assert(stopped);
+        std::cout << "  Q9 passed." << std::endl;
+    }
+
+    // Q10: autoplay=true + empty queue → plays next local track
+    {
+        std::cout << "Q10: autoplay=true + empty queue → next local track..." << std::endl;
+        auto cfg = make_test_config(paths, /*autoplay=*/true);
+        Application q_app(cfg);
+        wait_scan(q_app);
+        auto t = q_app.get_tracks();
+        std::string first  = (t[0].filename < t[1].filename) ? t[0].id : t[1].id;
+        std::string second = (t[0].filename < t[1].filename) ? t[1].id : t[0].id;
+
+        q_app.play_track(first);   // manual: resets autoplay counter, no limit
+        q_app.seek(999999);
+
+        bool advanced = false;
+        for (int i = 0; i < 400; ++i) {
+            q_app.update();
+            auto ct = q_app.get_current_track();
+            if (ct.has_value() && ct->id == second) { advanced = true; break; }
+            std::this_thread::sleep_for(10ms);
+        }
+        assert(advanced);
+        std::cout << "  Q10 passed." << std::endl;
+    }
+
+    // Q11: queue tracks do NOT count toward the autoplay limit
+    {
+        std::cout << "Q11: queue tracks do not count toward autoplay limit..." << std::endl;
+        // Limit=1: after the queue drains, exactly 1 local autoplay track should play.
+        auto cfg = make_test_config(paths, true, true, 1);
+        Application q_app(cfg);
+        wait_scan(q_app);
+        auto t = q_app.get_tracks();
+        std::string first  = (t[0].filename < t[1].filename) ? t[0].id : t[1].id;
+        std::string second = (t[0].filename < t[1].filename) ? t[1].id : t[0].id;
+
+        // Queue the second track, play the first manually.
+        q_app.queue_add(second);
+        q_app.play_track(first);
+        q_app.seek(999999);
+
+        // Should advance to second (queue item — not counted).
+        bool got_second = false;
+        for (int i = 0; i < 400; ++i) {
+            q_app.update();
+            auto ct = q_app.get_current_track();
+            if (ct.has_value() && ct->id == second) { got_second = true; break; }
+            std::this_thread::sleep_for(10ms);
+        }
+        assert(got_second);
+        assert(q_app.queue_is_empty());
+        // After queue exhausted, there are no more local tracks (second was last),
+        // so it should stop regardless of the limit.
+        q_app.seek(999999);
+        bool stopped = wait_stopped(q_app, 400);
+        assert(stopped);
+        std::cout << "  Q11 passed." << std::endl;
+    }
+
+    // Q12: manual track selection does not increment autoplay counter
+    {
+        std::cout << "Q12: manual selection does not count as autoplay..." << std::endl;
+        // Limit=1 but autoplay. Play first manually, play second manually.
+        // Neither increments the counter. Queue unchanged.
+        auto cfg = make_test_config(paths, true, true, 1);
+        Application q_app(cfg);
+        wait_scan(q_app);
+        auto t = q_app.get_tracks();
+        std::string first  = (t[0].filename < t[1].filename) ? t[0].id : t[1].id;
+        std::string second = (t[0].filename < t[1].filename) ? t[1].id : t[0].id;
+
+        q_app.queue_add(first);  // add to queue to verify it's unchanged
+        q_app.play_track(second); // manual
+        auto q = q_app.get_queue();
+        assert(q.size() == 1 && q[0] == first); // queue unmodified
+        std::cout << "  Q12 passed." << std::endl;
+    }
+
+    // Q13: autoplay limit stops after configured number of local tracks
+    {
+        std::cout << "Q13: autoplay limit stops after limit..." << std::endl;
+        // Library has 2 tracks (A=first, B=second in sorted order).
+        // Play A manually, autoplay should advance to B (count=1).
+        // Limit=1 → stops after B finishes (no more tracks anyway in this lib).
+        // This also tests limit=1 with exactly 1 local track available.
+        auto cfg = make_test_config(paths, true, true, 1);
+        Application q_app(cfg);
+        wait_scan(q_app);
+        auto t = q_app.get_tracks();
+        std::string first  = (t[0].filename < t[1].filename) ? t[0].id : t[1].id;
+        std::string second = (t[0].filename < t[1].filename) ? t[1].id : t[0].id;
+
+        q_app.play_track(first);
+        q_app.seek(999999);
+
+        // Autoplay should pick second (count becomes 1 = limit).
+        bool got_second = false;
+        for (int i = 0; i < 400; ++i) {
+            q_app.update();
+            auto ct = q_app.get_current_track();
+            if (ct.has_value() && ct->id == second) { got_second = true; break; }
+            std::this_thread::sleep_for(10ms);
+        }
+        assert(got_second);
+
+        // Now seek second to EOF — limit already reached, should stop.
+        q_app.seek(999999);
+        bool stopped = wait_stopped(q_app, 400);
+        assert(stopped);
+        std::cout << "  Q13 passed." << std::endl;
+    }
+
+    // =========================================================================
+    // Legacy Application Tests
     // =========================================================================
     std::cout << "\n--- Legacy Application Tests ---" << std::endl;
     {
-        Application r_app(paths);
+        auto cfg = make_test_config(paths);
+        Application r_app(cfg);
         wait_scan(r_app);
         auto t = r_app.get_tracks();
         r_app.play_track(t[0].id);
@@ -304,7 +478,8 @@ int main() {
         std::string tmp_mp3 = tmp_dir + "/tmp.mp3";
         fs::copy_file(source_mp3, tmp_mp3);
 
-        Application r_app({tmp_dir});
+        auto cfg = make_test_config({tmp_dir});
+        Application r_app(cfg);
         wait_scan(r_app);
         auto t = r_app.get_tracks();
         r_app.play_track(t[0].id);
@@ -325,7 +500,8 @@ int main() {
         std::string bad_mp3 = tmp_dir2 + "/bad.mp3";
         { std::ofstream out(bad_mp3); out << "bad data"; }
 
-        Application r_app({tmp_dir2});
+        auto cfg = make_test_config({tmp_dir2});
+        Application r_app(cfg);
         wait_scan(r_app);
         auto t = r_app.get_tracks();
         bool ok = r_app.play_track(t[0].id);
@@ -334,6 +510,6 @@ int main() {
     }
     std::cout << "  Bad file test passed." << std::endl;
 
-    std::cout << "\nAll Application + Queue assertions passed!" << std::endl;
+    std::cout << "\nAll Application + Queue + Autoplay assertions passed!" << std::endl;
     return 0;
 }

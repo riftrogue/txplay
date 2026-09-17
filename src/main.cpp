@@ -24,17 +24,9 @@ int main() {
         txplay::config::Config::resolve_user_config_path()
     );
 
-    txplay::application::Application app(
-        config.get_music_paths(),
-        config.get_playback().autoplay
-    );
+    txplay::application::Application app(config);
 
-    txplay::ui::TxplayUI ui(
-        app,
-        config.get_visualizer(),
-        config.get_navigation(),
-        shutdown_requested
-    );
+    txplay::ui::TxplayUI ui(app, config, shutdown_requested);
 
     ui.run();
     return 0;

@@ -16,6 +16,11 @@ FetchContent_MakeAvailable(ftxui)
 # project-root-relative paths (e.g. #include "audio/AudioEngine.hpp").
 set(TXPLAY_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
+# Config Source Files (shared by all targets)
+set(CONFIG_SRCS
+    src/config/Config.cpp
+)
+
 # Audio Engine sources
 set(AUDIO_SRCS
     src/audio/miniaudio_impl.cpp
@@ -41,6 +46,14 @@ add_executable(library_test_runner src/library/library_test_runner.cpp ${LIBRARY
 target_include_directories(library_test_runner PRIVATE ${TXPLAY_INCLUDE_DIRS})
 target_link_libraries(library_test_runner PRIVATE m pthread dl)
 
+# Config test runner executable
+add_executable(config_test_runner
+    src/config/config_test_runner.cpp
+    ${CONFIG_SRCS}
+)
+target_include_directories(config_test_runner PRIVATE ${TXPLAY_INCLUDE_DIRS})
+target_link_libraries(config_test_runner PRIVATE m pthread dl)
+
 # Application Source Files
 set(APPLICATION_SRCS
     src/application/Application.cpp
@@ -49,7 +62,7 @@ set(APPLICATION_SRCS
 # Application test runner executable
 add_executable(application_test_runner
     src/application/application_test_runner.cpp
-    ${APPLICATION_SRCS} ${LIBRARY_SRCS} ${AUDIO_SRCS}
+    ${APPLICATION_SRCS} ${LIBRARY_SRCS} ${AUDIO_SRCS} ${CONFIG_SRCS}
 )
 target_include_directories(application_test_runner PRIVATE ${TXPLAY_INCLUDE_DIRS} third_party/miniaudio)
 target_link_libraries(application_test_runner PRIVATE m pthread dl)
@@ -57,13 +70,13 @@ target_link_libraries(application_test_runner PRIVATE m pthread dl)
 # UI Source Files (FTXUI-dependent; excluded from test runners)
 set(UI_SRCS
     src/ui/TxplayUI.cpp
+    src/ui/Visualizer.cpp
 )
 
 # Main executable
 add_executable(txplay
     src/main.cpp
-    src/config/Config.cpp
-    ${APPLICATION_SRCS} ${LIBRARY_SRCS} ${AUDIO_SRCS} ${UI_SRCS}
+    ${CONFIG_SRCS} ${APPLICATION_SRCS} ${LIBRARY_SRCS} ${AUDIO_SRCS} ${UI_SRCS}
 )
 target_include_directories(txplay PRIVATE ${TXPLAY_INCLUDE_DIRS} third_party/miniaudio)
 target_link_libraries(txplay PRIVATE ftxui::screen ftxui::dom ftxui::component m pthread dl)

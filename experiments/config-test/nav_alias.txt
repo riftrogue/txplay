@@ -1,0 +1,12 @@
+
+[Navigation]
+pause=p
+search=/
+refresh=r
+quit=q
+seek_forward=right
+seek_backward=left
+queue_add=a
+queue_remove=d
+queue_clear=c
+play=enter

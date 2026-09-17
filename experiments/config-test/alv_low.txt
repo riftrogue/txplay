@@ -1,0 +1,2 @@
+[Playback]
+autoplay_limit_value=0

@@ -1,0 +1,2 @@
+[Visualizer]
+height=1

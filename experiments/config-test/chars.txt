@@ -1,0 +1,4 @@
+
+[Characters]
+border_horizontal=-
+border_vertical=|

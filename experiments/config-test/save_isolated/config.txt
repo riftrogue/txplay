@@ -4,13 +4,14 @@
 [Library]
 # Directories scanned for audio files (MP3, WAV, FLAC).
 # Repeat this key for multiple locations. Tilde expansion is supported.
-music_path=/home/riftrogue/Music/songs/
+# music_path=~/Music
 
 [Playback]
-# When true: automatically selects the next local track after the queue empties.
-# When false: playback stops when the queue empties (queue always plays regardless).
+# When true: automatically selects the next local track after the queue
+# empties. When false: playback stops when the queue is empty.
+# Queue tracks always play regardless of this setting.
 autoplay=true
-# Cap the number of local tracks auto-played in a session.
+# Limit the number of local tracks auto-played after queue exhaustion.
 autoplay_limit=false
 # Max local tracks to auto-play when autoplay_limit=true (1-9999).
 autoplay_limit_value=10

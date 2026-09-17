@@ -1,0 +1,11 @@
+
+[Keybindings]
+pause=p
+search=s
+refresh=u
+quit=x
+seek_forward=j
+seek_backward=k
+queue_add=e
+queue_remove=w
+queue_clear=z

@@ -4,29 +4,32 @@
 [Library]
 # Directories scanned for audio files (MP3, WAV, FLAC).
 # Repeat this key for multiple locations. Tilde expansion is supported.
-music_path=/home/riftrogue/Music/songs/
+music_path=~/Music
+music_path=/mnt/external
+music_path=~/Podcasts
 
 [Playback]
-# When true: automatically selects the next local track after the queue empties.
-# When false: playback stops when the queue empties (queue always plays regardless).
+# When true: automatically selects the next local track after the queue
+# empties. When false: playback stops when the queue is empty.
+# Queue tracks always play regardless of this setting.
 autoplay=true
-# Cap the number of local tracks auto-played in a session.
-autoplay_limit=false
+# Limit the number of local tracks auto-played after queue exhaustion.
+autoplay_limit=true
 # Max local tracks to auto-play when autoplay_limit=true (1-9999).
-autoplay_limit_value=10
+autoplay_limit_value=8
 # How many seconds each seek keypress moves (1-300).
-seek_seconds=5
+seek_seconds=20
 
 [Visualizer]
 # Show the real-time FFT visualizer panel.
-enabled=true
+enabled=false
 # Rendering style. Currently only "bars" is supported.
 style=bars
 # Height of the visualizer in terminal rows (1-20).
-height=6
+height=8
 
 [Keybindings]
-pause=space
+pause=p
 search=/
 refresh=r
 quit=q
