@@ -4,7 +4,10 @@
 [Library]
 # Directories scanned for audio files (MP3, WAV, FLAC).
 # Repeat this key for multiple locations. Tilde expansion is supported.
-music_path=/home/riftrogue/Music/songs/
+music_path=~/Music
+music_path=~/music
+music_path=~/Songs
+music_path=~/songs
 
 [Playback]
 # When true: automatically selects the next local track after the queue empties.

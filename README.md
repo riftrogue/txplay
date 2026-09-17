@@ -47,7 +47,9 @@ Configuration is managed via a plaintext INI file at `~/.config/txplay/config.tx
 [Library]
 # Directories to scan. Repeat for multiple locations. ~ is supported.
 music_path=~/Music
-music_path=~/Downloads
+music_path=~/music
+music_path=~/Songs
+music_path=~/songs
 
 [Playback]
 # Continue automatically after queue empties (false = stop).
