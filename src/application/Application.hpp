@@ -30,6 +30,8 @@ public:
 
     // Commands
     bool play_track(const std::string& track_id);
+    void play_next();     // explicit user command: queue front → library next → (shuffle: future)
+    void play_previous(); // explicit user command: library previous (no queue history)
     void toggle_pause();
     void seek(uint64_t ms);
     void set_volume(float volume);
@@ -87,6 +89,12 @@ private:
     // Queue: explicit FIFO of canonical track IDs with playback priority.
     // Queue is checked before autoplay on every EOF event.
     std::deque<std::string> queue_;
+
+    // One-step playback history: the canonical ID of the track that was playing
+    // immediately before the current track started.  Empty string means there
+    // is no previous track.  Populated on every track transition; consumed
+    // (cleared) by play_previous() so that pressing b twice does nothing.
+    std::string previous_track_id_;
 
     // Tracks whether the EOF transition for the current track has already been
     // processed. Reset to false every time a new track begins playing (whether

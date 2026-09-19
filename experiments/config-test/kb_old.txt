@@ -1,0 +1,2 @@
+[Keybindings]
+play_pause=space

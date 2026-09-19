@@ -510,6 +510,236 @@ int main() {
     }
     std::cout << "  Bad file test passed." << std::endl;
 
-    std::cout << "\nAll Application + Queue + Autoplay assertions passed!" << std::endl;
+    // =========================================================================
+    // Next / Previous Tests
+    // =========================================================================
+    std::cout << "\n--- Next / Previous Tests ---" << std::endl;
+
+    // NP1: play_next() — queue has items → plays queue front, queue shrinks
+    {
+        std::cout << "NP1: play_next() consumes queue front..." << std::endl;
+        auto cfg = make_test_config(paths);
+        Application np_app(cfg);
+        wait_scan(np_app);
+        auto t = np_app.get_tracks();
+        assert(t.size() == 2);
+        std::string first  = (t[0].filename < t[1].filename) ? t[0].id : t[1].id;
+        std::string second = (t[0].filename < t[1].filename) ? t[1].id : t[0].id;
+
+        np_app.play_track(first);
+        np_app.queue_add(second);
+        assert(np_app.get_queue().size() == 1);
+
+        np_app.play_next();
+
+        // Queue should be empty and current track should be second
+        assert(np_app.get_queue().empty());
+        assert(np_app.get_current_track().has_value());
+        assert(np_app.get_current_track()->id == second);
+        assert(np_app.get_playback_state() == txplay::audio::PlaybackState::Playing);
+        std::cout << "  NP1 passed." << std::endl;
+    }
+
+    // NP2: play_next() — empty queue, shuffle OFF → next library track
+    {
+        std::cout << "NP2: play_next() library fallback (no queue)..." << std::endl;
+        auto cfg = make_test_config(paths);
+        Application np_app(cfg);
+        wait_scan(np_app);
+        auto t = np_app.get_tracks();
+        std::string first  = (t[0].filename < t[1].filename) ? t[0].id : t[1].id;
+        std::string second = (t[0].filename < t[1].filename) ? t[1].id : t[0].id;
+
+        np_app.play_track(first);
+        assert(np_app.queue_is_empty());
+
+        np_app.play_next();
+
+        assert(np_app.get_current_track().has_value());
+        assert(np_app.get_current_track()->id == second);
+        assert(np_app.get_playback_state() == txplay::audio::PlaybackState::Playing);
+        std::cout << "  NP2 passed." << std::endl;
+    }
+
+    // NP3: play_next() — queue priority over library (even when library has next)
+    {
+        std::cout << "NP3: play_next() queue takes priority over library..." << std::endl;
+        auto cfg = make_test_config(paths);
+        Application np_app(cfg);
+        wait_scan(np_app);
+        auto t = np_app.get_tracks();
+        std::string first  = (t[0].filename < t[1].filename) ? t[0].id : t[1].id;
+        std::string second = (t[0].filename < t[1].filename) ? t[1].id : t[0].id;
+
+        // Playing first; queue has second — next should take second from queue,
+        // not second from library (they happen to be the same track here, so
+        // verify queue was consumed).
+        np_app.play_track(first);
+        np_app.queue_add(second);
+
+        np_app.play_next();
+
+        assert(np_app.queue_is_empty()); // queue was consumed, not bypassed
+        assert(np_app.get_current_track()->id == second);
+        std::cout << "  NP3 passed." << std::endl;
+    }
+
+    // NP4: play_next() — at last library track, no queue → do nothing
+    {
+        std::cout << "NP4: play_next() at end of library → no-op..." << std::endl;
+        auto cfg = make_test_config(paths);
+        Application np_app(cfg);
+        wait_scan(np_app);
+        auto t = np_app.get_tracks();
+        std::string last = (t[0].filename < t[1].filename) ? t[1].id : t[0].id;
+
+        np_app.play_track(last);
+        np_app.play_next(); // at end — should do nothing
+
+        // Still playing the last track (no change)
+        assert(np_app.get_current_track().has_value());
+        assert(np_app.get_current_track()->id == last);
+        std::cout << "  NP4 passed." << std::endl;
+    }
+
+    // NP5: play_next() works regardless of autoplay setting
+    {
+        std::cout << "NP5: play_next() unaffected by autoplay=false..." << std::endl;
+        auto cfg = make_test_config(paths, /*autoplay=*/false);
+        Application np_app(cfg);
+        wait_scan(np_app);
+        auto t = np_app.get_tracks();
+        std::string first  = (t[0].filename < t[1].filename) ? t[0].id : t[1].id;
+        std::string second = (t[0].filename < t[1].filename) ? t[1].id : t[0].id;
+
+        np_app.play_track(first);
+        np_app.play_next(); // must work even with autoplay=false
+
+        assert(np_app.get_current_track().has_value());
+        assert(np_app.get_current_track()->id == second);
+        std::cout << "  NP5 passed." << std::endl;
+    }
+
+    // NP6: play_previous() returns the immediately previous played track
+    //      (one-step history, source-agnostic)
+    {
+        std::cout << "NP6: play_previous() returns immediately previous track..." << std::endl;
+        auto cfg = make_test_config(paths);
+        Application np_app(cfg);
+        wait_scan(np_app);
+        auto t = np_app.get_tracks();
+        std::string first  = (t[0].filename < t[1].filename) ? t[0].id : t[1].id;
+        std::string second = (t[0].filename < t[1].filename) ? t[1].id : t[0].id;
+
+        np_app.play_track(first);   // previous = ""    current = first
+        np_app.play_track(second);  // previous = first current = second
+
+        np_app.play_previous();     // should go back to first
+
+        assert(np_app.get_current_track().has_value());
+        assert(np_app.get_current_track()->id == first);
+        assert(np_app.get_playback_state() == txplay::audio::PlaybackState::Playing);
+        std::cout << "  NP6 passed." << std::endl;
+    }
+
+    // NP7: play_previous() slot is consumed — pressing b twice does nothing
+    {
+        std::cout << "NP7: play_previous() consumed after one use..." << std::endl;
+        auto cfg = make_test_config(paths);
+        Application np_app(cfg);
+        wait_scan(np_app);
+        auto t = np_app.get_tracks();
+        std::string first  = (t[0].filename < t[1].filename) ? t[0].id : t[1].id;
+        std::string second = (t[0].filename < t[1].filename) ? t[1].id : t[0].id;
+
+        np_app.play_track(first);
+        np_app.play_track(second);
+
+        np_app.play_previous();  // goes to first, slot cleared
+        assert(np_app.get_current_track()->id == first);
+
+        np_app.play_previous();  // no history left — must not change
+        assert(np_app.get_current_track()->id == first); // still first
+        assert(np_app.get_playback_state() == txplay::audio::PlaybackState::Playing);
+        std::cout << "  NP7 passed." << std::endl;
+    }
+
+    // NP8: Autoplay regression — play_next() does not break subsequent autoplay;
+    //      autoplay transition correctly populates the previous-track slot.
+    {
+        std::cout << "NP8: autoplay regression + previous slot after autoplay..." << std::endl;
+        auto cfg = make_test_config(paths, /*autoplay=*/true);
+        Application np_app(cfg);
+        wait_scan(np_app);
+        auto t = np_app.get_tracks();
+        std::string first  = (t[0].filename < t[1].filename) ? t[0].id : t[1].id;
+        std::string second = (t[0].filename < t[1].filename) ? t[1].id : t[0].id;
+
+        // play_next() from first → lands on second.
+        np_app.play_track(first);
+        np_app.play_next();
+        assert(np_app.get_current_track()->id == second);
+
+        // Pressing b should return to first (play_next set previous = first).
+        np_app.play_previous();
+        assert(np_app.get_current_track()->id == first);
+
+        // Autoplay regression: seek first to EOF; autoplay at end of library
+        // (first is the last autoplay track after returning) — stops cleanly.
+        np_app.seek(999999);
+        bool stopped = wait_stopped(np_app, 400);
+        assert(stopped);
+        std::cout << "  NP8 passed." << std::endl;
+    }
+
+    // NP9: No toggle — play_previous cannot oscillate C→B→C→B
+    {
+        std::cout << "NP9: no C->B->C toggle behavior..." << std::endl;
+        auto cfg = make_test_config(paths);
+        Application np_app(cfg);
+        wait_scan(np_app);
+        auto t = np_app.get_tracks();
+        std::string first  = (t[0].filename < t[1].filename) ? t[0].id : t[1].id;
+        std::string second = (t[0].filename < t[1].filename) ? t[1].id : t[0].id;
+
+        np_app.play_track(first);
+        np_app.play_track(second); // previous = first, current = second
+
+        np_app.play_previous();    // goes to first, previous cleared
+        assert(np_app.get_current_track()->id == first);
+
+        // Must NOT go back to second — previous was consumed
+        np_app.play_previous();
+        assert(np_app.get_current_track()->id == first); // unchanged
+        std::cout << "  NP9 passed." << std::endl;
+    }
+
+    // NP10: play_previous works across playback sources (queue → library)
+    {
+        std::cout << "NP10: play_previous works across playback sources..." << std::endl;
+        auto cfg = make_test_config(paths);
+        Application np_app(cfg);
+        wait_scan(np_app);
+        auto t = np_app.get_tracks();
+        std::string first  = (t[0].filename < t[1].filename) ? t[0].id : t[1].id;
+        std::string second = (t[0].filename < t[1].filename) ? t[1].id : t[0].id;
+
+        // Play first from library directly; queue second and advance via play_next
+        np_app.play_track(first);  // library source
+        np_app.queue_add(second);
+        np_app.play_next();        // queue source; previous = first, current = second
+
+        assert(np_app.get_current_track()->id == second);
+        assert(np_app.queue_is_empty());
+
+        np_app.play_previous();    // should return to first regardless of source
+
+        assert(np_app.get_current_track().has_value());
+        assert(np_app.get_current_track()->id == first);
+        assert(np_app.get_playback_state() == txplay::audio::PlaybackState::Playing);
+        std::cout << "  NP10 passed." << std::endl;
+    }
+
+    std::cout << "\nAll Application + Queue + Autoplay + Next/Previous assertions passed!" << std::endl;
     return 0;
 }

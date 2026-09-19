@@ -3,8 +3,11 @@
 #include <filesystem>
 #include <fstream>
 #include "Config.hpp"
+#include "common/Key.hpp"
 
 using namespace txplay::config;
+using txplay::common::Key;
+using txplay::common::KeyCode;
 namespace fs = std::filesystem;
 
 // ---------------------------------------------------------------------------
@@ -37,15 +40,26 @@ static void test_defaults() {
     assert(cfg.visualizer().enabled == true);
     assert(cfg.visualizer().style == "bars");
     assert(cfg.visualizer().height == 6);
-    assert(cfg.keybinds().pause         == "space");
-    assert(cfg.keybinds().search        == "/");
-    assert(cfg.keybinds().refresh       == "r");
-    assert(cfg.keybinds().quit          == "q");
-    assert(cfg.keybinds().seek_forward  == "right");
-    assert(cfg.keybinds().seek_backward == "left");
-    assert(cfg.keybinds().queue_add     == "a");
-    assert(cfg.keybinds().queue_remove  == "d");
-    assert(cfg.keybinds().queue_clear   == "c");
+
+    // KeybindConfig defaults — RIGHT-side Key values
+    assert(cfg.keybinds().play_pause      == Key::space());
+    assert(cfg.keybinds().next            == Key::character('n'));
+    assert(cfg.keybinds().previous        == Key::character('b'));
+    assert(cfg.keybinds().navigation_up   == Key::arrow_up());
+    assert(cfg.keybinds().navigation_down == Key::arrow_down());
+    assert(cfg.keybinds().focus_next      == Key::tab());
+    assert(cfg.keybinds().focus_previous  == Key::shift_tab());
+    assert(cfg.keybinds().play            == Key::enter());
+    assert(cfg.keybinds().back            == Key::escape());
+    assert(cfg.keybinds().search          == Key::character('/'));
+    assert(cfg.keybinds().refresh         == Key::character('r'));
+    assert(cfg.keybinds().quit            == Key::character('q'));
+    assert(cfg.keybinds().seek_forward    == Key::arrow_right());
+    assert(cfg.keybinds().seek_backward   == Key::arrow_left());
+    assert(cfg.keybinds().queue_add       == Key::character('a'));
+    assert(cfg.keybinds().queue_remove    == Key::character('d'));
+    assert(cfg.keybinds().queue_clear     == Key::character('c'));
+
     assert(!cfg.is_modified());
     std::cout << "  T01 passed." << std::endl;
 }
@@ -72,12 +86,20 @@ style=bars
 height=12
 
 [Keybindings]
-pause=p
+play_pause=Space
+next=n
+previous=b
+navigation_up=ArrowUp
+navigation_down=ArrowDown
+focus_next=Tab
+focus_previous=ShiftTab
+play=Enter
+back=Escape
 search=/
 refresh=r
 quit=q
-seek_forward=right
-seek_backward=left
+seek_forward=ArrowRight
+seek_backward=ArrowLeft
 queue_add=a
 queue_remove=d
 queue_clear=c
@@ -93,7 +115,26 @@ queue_clear=c
     assert(cfg.playback().seek_seconds == 10);
     assert(cfg.visualizer().enabled == false);
     assert(cfg.visualizer().height == 12);
-    assert(cfg.keybinds().pause == "p");
+
+    // All keybindings parsed correctly
+    assert(cfg.keybinds().play_pause      == Key::space());
+    assert(cfg.keybinds().next            == Key::character('n'));
+    assert(cfg.keybinds().previous        == Key::character('b'));
+    assert(cfg.keybinds().navigation_up   == Key::arrow_up());
+    assert(cfg.keybinds().navigation_down == Key::arrow_down());
+    assert(cfg.keybinds().focus_next      == Key::tab());
+    assert(cfg.keybinds().focus_previous  == Key::shift_tab());
+    assert(cfg.keybinds().play            == Key::enter());
+    assert(cfg.keybinds().back            == Key::escape());
+    assert(cfg.keybinds().search          == Key::character('/'));
+    assert(cfg.keybinds().refresh         == Key::character('r'));
+    assert(cfg.keybinds().quit            == Key::character('q'));
+    assert(cfg.keybinds().seek_forward    == Key::arrow_right());
+    assert(cfg.keybinds().seek_backward   == Key::arrow_left());
+    assert(cfg.keybinds().queue_add       == Key::character('a'));
+    assert(cfg.keybinds().queue_remove    == Key::character('d'));
+    assert(cfg.keybinds().queue_clear     == Key::character('c'));
+
     std::cout << "  T02 passed." << std::endl;
 }
 
@@ -102,23 +143,27 @@ queue_clear=c
 // ---------------------------------------------------------------------------
 static void test_navigation_alias() {
     std::cout << "T03: [Navigation] backward-compat..." << std::endl;
+    // [Navigation] is a backward-compatible section-name alias.
+    // New LEFT-side key names work inside it.
+    // Old key names (pause=, seek_forward=right) are silently ignored.
     auto path = write_tmp("nav_alias.txt", R"(
 [Navigation]
-pause=p
-search=/
-refresh=r
-quit=q
-seek_forward=right
-seek_backward=left
+play_pause=p
+search=s
+refresh=u
+quit=x
+seek_forward=ArrowRight
+seek_backward=ArrowLeft
 queue_add=a
 queue_remove=d
 queue_clear=c
-play=enter
 )");
-    // 'play=enter' must be silently ignored
     Config cfg(path);
-    assert(cfg.keybinds().pause   == "p");
-    assert(cfg.keybinds().refresh == "r");
+    assert(cfg.keybinds().play_pause   == Key::character('p'));
+    assert(cfg.keybinds().search       == Key::character('s'));
+    assert(cfg.keybinds().refresh      == Key::character('u'));
+    assert(cfg.keybinds().quit         == Key::character('x'));
+    assert(cfg.keybinds().seek_forward == Key::arrow_right());
     std::cout << "  T03 passed." << std::endl;
 }
 
@@ -199,13 +244,20 @@ static void test_validation_height() {
 }
 
 // ---------------------------------------------------------------------------
-// T07: Validation — empty keybind reverts to default
+// T07: Validation — unknown keybind value reverts to default
 // ---------------------------------------------------------------------------
 static void test_validation_keybind() {
-    std::cout << "T07: empty keybind reverts to default..." << std::endl;
-    auto path = write_tmp("kb_empty.txt", "[Keybindings]\npause=\n");
-    Config cfg(path);
-    assert(cfg.keybinds().pause == "space");
+    std::cout << "T07: unknown keybind value reverts to default..." << std::endl;
+    // Old format alias "space" is no longer recognized → Unknown → reverts to Space.
+    auto path_old = write_tmp("kb_old.txt", "[Keybindings]\nplay_pause=space\n");
+    Config cfg_old(path_old);
+    assert(cfg_old.keybinds().play_pause == Key::space()); // reverts to default
+
+    // Genuinely unknown value
+    auto path_bad = write_tmp("kb_bad.txt", "[Keybindings]\nnavigation_up=NotAKey\n");
+    Config cfg_bad(path_bad);
+    assert(cfg_bad.keybinds().navigation_up == Key::arrow_up()); // default
+
     std::cout << "  T07 passed." << std::endl;
 }
 
@@ -253,8 +305,15 @@ static void test_mutation() {
     cfg.set_autoplay_limit_value(0);
     assert(cfg.playback().autoplay_limit_value == 1);
 
-    cfg.set_keybind("pause", "p");
-    assert(cfg.keybinds().pause == "p");
+    // Keybind mutation — new LEFT name, RIGHT-side canonical name
+    cfg.set_keybind("play_pause", "p");
+    assert(cfg.keybinds().play_pause == Key::character('p'));
+
+    cfg.set_keybind("navigation_up", "k");
+    assert(cfg.keybinds().navigation_up == Key::character('k'));
+
+    cfg.set_keybind("seek_forward", "ArrowRight");
+    assert(cfg.keybinds().seek_forward == Key::arrow_right());
 
     cfg.add_music_path("~/Music");
     assert(cfg.library().music_paths.size() == 1);
@@ -294,12 +353,20 @@ style=bars
 height=8
 
 [Keybindings]
-pause=p
+play_pause=Space
+next=n
+previous=b
+navigation_up=ArrowUp
+navigation_down=ArrowDown
+focus_next=Tab
+focus_previous=ShiftTab
+play=Enter
+back=Escape
 search=/
 refresh=r
 quit=q
-seek_forward=right
-seek_backward=left
+seek_forward=ArrowRight
+seek_backward=ArrowLeft
 queue_add=a
 queue_remove=d
 queue_clear=c
@@ -326,7 +393,7 @@ queue_clear=c
     assert(reloaded.playback().autoplay_limit_value == 8);
     assert(reloaded.visualizer().enabled == false);
     assert(reloaded.visualizer().height == 8);
-    assert(reloaded.keybinds().pause == "p");
+    assert(reloaded.keybinds().play_pause == Key::space());    // default round-trip
 
     std::cout << "  T09 passed." << std::endl;
 }
@@ -353,9 +420,6 @@ static void test_modified_flag() {
     assert(!cfg.is_modified());           // flag cleared after successful save
     assert(fs::exists(save_path));        // file was created at the isolated path
 
-    // Confirm real user config was NOT touched by comparing with a known good path.
-    // (We can't check ~/.config/txplay/config.txt from here reliably, but we can
-    //  assert the saved file is in the test directory, not the user's home.)
     assert(save_path.find("experiments/") != std::string::npos);
 
     std::cout << "  T10 passed." << std::endl;
@@ -430,9 +494,6 @@ static void test_for_testing_isolation() {
     cfg.save();
     assert(fs::exists(isolated_save));
 
-    // A normal Config() constructed with the same source path should still
-    // target ~/.config/txplay/ — we can't assert that path here, but we can
-    // verify it was NOT written to our isolated path by the normal constructor.
     Config normal(TEST_ROOT + "/nonexistent.txt");
     assert(!normal.is_modified());
 
@@ -473,7 +534,8 @@ static void test_empty_config() {
     assert(cfg.playback().seek_seconds == 5);
     assert(cfg.visualizer().enabled == true);
     assert(cfg.visualizer().height == 6);
-    assert(cfg.keybinds().pause == "space");
+    assert(cfg.keybinds().play_pause == Key::space());       // renamed from pause
+    assert(cfg.keybinds().navigation_up == Key::arrow_up()); // new default
     std::cout << "  T16 passed." << std::endl;
 }
 
@@ -502,32 +564,48 @@ static void test_autoplay_limit_value_validation() {
 }
 
 // ---------------------------------------------------------------------------
-// T18: Direct [Keybindings] section parses correctly
+// T18: [Keybindings] section — new LEFT names and RIGHT key names
 // ---------------------------------------------------------------------------
 static void test_keybindings_section() {
-    std::cout << "T18: [Keybindings] section parsed correctly..." << std::endl;
+    std::cout << "T18: [Keybindings] section — all LEFT=RIGHT..." << std::endl;
     auto path = write_tmp("kb_direct.txt", R"(
 [Keybindings]
-pause=p
+play_pause=p
+next=m
+previous=z
+navigation_up=k
+navigation_down=j
+focus_next=Tab
+focus_previous=ShiftTab
+play=Enter
+back=Escape
 search=s
 refresh=u
 quit=x
-seek_forward=j
-seek_backward=k
+seek_forward=ArrowRight
+seek_backward=ArrowLeft
 queue_add=e
 queue_remove=w
-queue_clear=z
+queue_clear=y
 )");
     Config cfg(path);
-    assert(cfg.keybinds().pause         == "p");
-    assert(cfg.keybinds().search        == "s");
-    assert(cfg.keybinds().refresh       == "u");
-    assert(cfg.keybinds().quit          == "x");
-    assert(cfg.keybinds().seek_forward  == "j");
-    assert(cfg.keybinds().seek_backward == "k");
-    assert(cfg.keybinds().queue_add     == "e");
-    assert(cfg.keybinds().queue_remove  == "w");
-    assert(cfg.keybinds().queue_clear   == "z");
+    assert(cfg.keybinds().play_pause      == Key::character('p'));
+    assert(cfg.keybinds().next            == Key::character('m'));
+    assert(cfg.keybinds().previous        == Key::character('z'));
+    assert(cfg.keybinds().navigation_up   == Key::character('k'));
+    assert(cfg.keybinds().navigation_down == Key::character('j'));
+    assert(cfg.keybinds().focus_next      == Key::tab());
+    assert(cfg.keybinds().focus_previous  == Key::shift_tab());
+    assert(cfg.keybinds().play            == Key::enter());
+    assert(cfg.keybinds().back            == Key::escape());
+    assert(cfg.keybinds().search          == Key::character('s'));
+    assert(cfg.keybinds().refresh         == Key::character('u'));
+    assert(cfg.keybinds().quit            == Key::character('x'));
+    assert(cfg.keybinds().seek_forward    == Key::arrow_right());
+    assert(cfg.keybinds().seek_backward   == Key::arrow_left());
+    assert(cfg.keybinds().queue_add       == Key::character('e'));
+    assert(cfg.keybinds().queue_remove    == Key::character('w'));
+    assert(cfg.keybinds().queue_clear     == Key::character('y'));
     std::cout << "  T18 passed." << std::endl;
 }
 
@@ -563,11 +641,133 @@ static void test_autoplay_parsing() {
 static void test_set_keybind_empty_noop() {
     std::cout << "T20: set_keybind with empty key is no-op..." << std::endl;
     Config cfg(TEST_ROOT + "/nonexistent.txt");
-    assert(cfg.keybinds().pause == "space");
-    cfg.set_keybind("pause", "");           // empty key: must be ignored
-    assert(cfg.keybinds().pause == "space"); // unchanged
+    assert(cfg.keybinds().play_pause == Key::space());
+    cfg.set_keybind("play_pause", "");              // empty key: must be ignored
+    assert(cfg.keybinds().play_pause == Key::space()); // unchanged
     assert(!cfg.is_modified());
     std::cout << "  T20 passed." << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// T21: Key::parse() — special key names
+// ---------------------------------------------------------------------------
+static void test_key_parse_special() {
+    std::cout << "T21: Key::parse() special key names..." << std::endl;
+    assert(Key::parse("Space")     == Key::space());
+    assert(Key::parse("Enter")     == Key::enter());
+    assert(Key::parse("Escape")    == Key::escape());
+    assert(Key::parse("Tab")       == Key::tab());
+    assert(Key::parse("ShiftTab")  == Key::shift_tab());
+    assert(Key::parse("ArrowUp")   == Key::arrow_up());
+    assert(Key::parse("ArrowDown") == Key::arrow_down());
+    assert(Key::parse("ArrowLeft") == Key::arrow_left());
+    assert(Key::parse("ArrowRight")== Key::arrow_right());
+    assert(Key::parse("Backspace") == Key::backspace());
+    std::cout << "  T21 passed." << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// T22: Key::parse() — character keys
+// ---------------------------------------------------------------------------
+static void test_key_parse_characters() {
+    std::cout << "T22: Key::parse() character keys..." << std::endl;
+    assert(Key::parse("n")  == Key::character('n'));
+    assert(Key::parse("/")  == Key::character('/'));
+    assert(Key::parse("?")  == Key::character('?'));
+    assert(Key::parse("a")  == Key::character('a'));
+    assert(Key::parse("z")  == Key::character('z'));
+    assert(Key::parse(" ")  == Key::character(' ')); // single space → Character, not Space
+    // (Space the canonical name produces Space; " " the single character produces Character(' '))
+    // These are distinct Keys because their KeyCode differs.
+    assert(Key::parse(" ") != Key::space());
+    std::cout << "  T22 passed." << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// T23: Key::parse() — unknown / old-format names produce Unknown
+// ---------------------------------------------------------------------------
+static void test_key_parse_unknown() {
+    std::cout << "T23: Key::parse() unknown / old-format names..." << std::endl;
+    // Old aliases (not supported)
+    assert(Key::parse("right").is_unknown());
+    assert(Key::parse("left").is_unknown());
+    assert(Key::parse("up").is_unknown());
+    assert(Key::parse("down").is_unknown());
+    assert(Key::parse("space").is_unknown());   // "space" ≠ "Space"
+    assert(Key::parse("enter").is_unknown());   // "enter" ≠ "Enter"
+    assert(Key::parse("escape").is_unknown());  // "escape" ≠ "Escape"
+    // Genuinely garbage values
+    assert(Key::parse("NotAKey").is_unknown());
+    assert(Key::parse("garbage").is_unknown());
+    assert(Key::parse("").is_unknown());
+    assert(Key::parse("ArrowUp2").is_unknown());
+    assert(Key::parse("SPACE").is_unknown());   // wrong case
+    // Removed key codes — no longer supported
+    assert(Key::parse("Delete").is_unknown());
+    assert(Key::parse("Home").is_unknown());
+    assert(Key::parse("End").is_unknown());
+    assert(Key::parse("PageUp").is_unknown());
+    assert(Key::parse("PageDown").is_unknown());
+    assert(Key::parse("F1").is_unknown());
+    assert(Key::parse("F6").is_unknown());
+    assert(Key::parse("F12").is_unknown());
+    std::cout << "  T23 passed." << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// T24: Key::name() round-trip — parse(key.name()) == key
+// ---------------------------------------------------------------------------
+static void test_key_name_roundtrip() {
+    std::cout << "T24: Key::name() round-trip..." << std::endl;
+    auto rt = [](const Key& k) {
+        return Key::parse(k.name()) == k;
+    };
+    assert(rt(Key::space()));
+    assert(rt(Key::enter()));
+    assert(rt(Key::escape()));
+    assert(rt(Key::tab()));
+    assert(rt(Key::shift_tab()));
+    assert(rt(Key::arrow_up()));
+    assert(rt(Key::arrow_down()));
+    assert(rt(Key::arrow_left()));
+    assert(rt(Key::arrow_right()));
+    assert(rt(Key::backspace()));
+    assert(rt(Key::character('n')));
+    assert(rt(Key::character('/')));
+    assert(rt(Key::character('?')));
+    std::cout << "  T24 passed." << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// T25: Config with remapped navigation key (navigation_up=k)
+// ---------------------------------------------------------------------------
+static void test_remapped_navigation() {
+    std::cout << "T25: navigation_up=k remaps correctly..." << std::endl;
+    auto path = write_tmp("remap_nav.txt", "[Keybindings]\nnavigation_up=k\nnavigation_down=j\n");
+    Config cfg(path);
+    assert(cfg.keybinds().navigation_up   == Key::character('k'));
+    assert(cfg.keybinds().navigation_down == Key::character('j'));
+    // Others still default
+    assert(cfg.keybinds().play_pause      == Key::space());
+    assert(cfg.keybinds().quit            == Key::character('q'));
+    std::cout << "  T25 passed." << std::endl;
+}
+
+// ---------------------------------------------------------------------------
+// T26: set_keybind with unknown key_name is a no-op
+// ---------------------------------------------------------------------------
+static void test_set_keybind_unknown_noop() {
+    std::cout << "T26: set_keybind with unknown key_name is no-op..." << std::endl;
+    Config cfg(TEST_ROOT + "/nonexistent.txt");
+    // "right" is old vocab — not recognized
+    cfg.set_keybind("seek_forward", "right");
+    assert(cfg.keybinds().seek_forward == Key::arrow_right()); // unchanged default
+    assert(!cfg.is_modified());
+    // Garbage value
+    cfg.set_keybind("quit", "NotAKey");
+    assert(cfg.keybinds().quit == Key::character('q'));
+    assert(!cfg.is_modified());
+    std::cout << "  T26 passed." << std::endl;
 }
 
 // ---------------------------------------------------------------------------
@@ -597,7 +797,13 @@ int main() {
     test_keybindings_section();
     test_autoplay_parsing();
     test_set_keybind_empty_noop();
+    test_key_parse_special();
+    test_key_parse_characters();
+    test_key_parse_unknown();
+    test_key_name_roundtrip();
+    test_remapped_navigation();
+    test_set_keybind_unknown_noop();
 
-    std::cout << "\nAll Config assertions passed! (20 tests)" << std::endl;
+    std::cout << "\nAll Config assertions passed! (26 tests)" << std::endl;
     return 0;
 }

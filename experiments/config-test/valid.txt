@@ -15,12 +15,20 @@ style=bars
 height=12
 
 [Keybindings]
-pause=p
+play_pause=Space
+next=n
+previous=b
+navigation_up=ArrowUp
+navigation_down=ArrowDown
+focus_next=Tab
+focus_previous=ShiftTab
+play=Enter
+back=Escape
 search=/
 refresh=r
 quit=q
-seek_forward=right
-seek_backward=left
+seek_forward=ArrowRight
+seek_backward=ArrowLeft
 queue_add=a
 queue_remove=d
 queue_clear=c

@@ -49,10 +49,112 @@ bool Application::play_track(const std::string& track_id) {
     }
 
     // 4. Update current_track_id and reset EOF guard on every successful start.
-    current_track_id_ = track_id;
+    //    Record the previous track before overwriting current so play_previous()
+    //    can return to it.
+    previous_track_id_ = current_track_id_;
+    current_track_id_  = track_id;
     eof_processed_ = false;
     status_message_ = "Playing: " + target_track->title;
     return true;
+}
+
+// ---------------------------------------------------------------------------
+// play_next() — explicit user "next" command.
+//
+// Decision order:
+//   1. Queue has items → consume the front entry (same as advance_queue, but
+//      triggered manually rather than on EOF).
+//   2. Queue empty, shuffle OFF → next track in library order after current.
+//   3. Queue empty, shuffle ON → [future: random library track; not yet built]
+//
+// This is always an explicit user action. Autoplay settings are irrelevant.
+// Resets the autoplay counter so a subsequent auto-advance starts fresh.
+// ---------------------------------------------------------------------------
+void Application::play_next() {
+    // Step 1: consume the queue front (if any).
+    if (!queue_.empty()) {
+        // Reuse advance_queue() mechanics: pop-and-play, skip invalid entries.
+        if (advance_queue()) {
+            reset_autoplay_counter(); // manual skip resets autoplay context
+            return;
+        }
+        // Queue was non-empty but all entries were invalid — fall through.
+    }
+
+    // Step 2: no usable queue entry — advance in library order.
+    // Shuffle is not yet implemented; the library-order path is always used.
+    auto tracks = library_.get_tracks();
+    if (tracks.empty()) return;
+
+    // Find the current track's position in the library.
+    int current_index = -1;
+    for (int i = 0; i < static_cast<int>(tracks.size()); ++i) {
+        if (tracks[i].id == current_track_id_) {
+            current_index = i;
+            break;
+        }
+    }
+
+    // If no current track, start from the first library track.
+    int next_index = (current_index < 0) ? 0 : current_index + 1;
+
+    if (next_index >= static_cast<int>(tracks.size())) {
+        // Already at the end of the library — do nothing.
+        return;
+    }
+
+    const auto& next_track = tracks[next_index];
+    if (!audio_engine_.play(next_track.path)) {
+        status_message_ = "Error: Failed to play: " + next_track.path;
+        return;
+    }
+
+    previous_track_id_ = current_track_id_;
+    current_track_id_  = next_track.id;
+    eof_processed_    = false;
+    reset_autoplay_counter();
+    status_message_   = "Playing: " + next_track.title;
+}
+
+// ---------------------------------------------------------------------------
+// play_previous() — explicit user "previous" command.
+//
+// Returns to the immediately previous track using the one-step history slot
+// (previous_track_id_).  The slot is CONSUMED on use so pressing b twice does
+// nothing (no C→B→C toggle).
+//
+// The queue is a forward-only FIFO; there is no "previous queue item".
+// This implementation is deliberately source-agnostic: it does not care
+// whether the previous track came from the library, the queue, or future
+// shuffle playback.
+// ---------------------------------------------------------------------------
+void Application::play_previous() {
+    if (previous_track_id_.empty()) return; // no history — do nothing
+
+    // Locate the previous track in the library.
+    std::optional<library::Track> prev_track = std::nullopt;
+    for (const auto& t : library_.get_tracks()) {
+        if (t.id == previous_track_id_) { prev_track = t; break; }
+    }
+
+    if (!prev_track) {
+        // Track was deleted from library since it last played — discard history.
+        previous_track_id_.clear();
+        return;
+    }
+
+    if (!audio_engine_.play(prev_track->path)) {
+        status_message_ = "Error: Failed to play: " + prev_track->path;
+        return;
+    }
+
+    // IMPORTANT: do NOT write previous_track_id_ = current_track_id_ here.
+    // Doing so would allow C→B→C→B toggling.  Instead, consume the slot.
+    current_track_id_  = previous_track_id_;
+    previous_track_id_ = "";   // slot consumed
+    eof_processed_     = false;
+    reset_autoplay_counter();
+    status_message_    = "Playing: " + prev_track->title;
 }
 
 void Application::toggle_pause() {
@@ -145,9 +247,10 @@ bool Application::advance_queue() {
             continue;
         }
 
-        current_track_id_ = next_id;
-        eof_processed_    = false;
-        status_message_   = "Playing: " + target->title;
+        previous_track_id_ = current_track_id_;
+        current_track_id_  = next_id;
+        eof_processed_     = false;
+        status_message_    = "Playing: " + target->title;
         return true;
     }
     return false;
@@ -198,6 +301,7 @@ bool Application::advance_autoplay() {
         return false;
     }
 
+    previous_track_id_        = current_track_id_;
     current_track_id_         = next_track.id;
     autoplay_local_index_     = next_index;
     eof_processed_            = false;

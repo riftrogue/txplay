@@ -2,6 +2,7 @@
 #include "Util.hpp"
 #include "Widgets.hpp"
 #include "Visualizer.hpp"
+#include "InputAdapter.hpp"
 
 #include <ftxui/component/component.hpp>
 #include <ftxui/component/loop.hpp>
@@ -16,26 +17,9 @@
 
 using namespace ftxui;
 using namespace std::chrono_literals;
+using txplay::common::Key;
 
 namespace txplay::ui {
-
-// ---------------------------------------------------------------------------
-// match_keybind() — translates a config key-name string to an FTXUI event
-// ---------------------------------------------------------------------------
-// Supported named keys: right, left, up, down, space, enter, escape.
-// Single-character strings are matched as character events.
-// Any other string returns false (unknown/unsupported key name).
-static bool match_keybind(const Event& event, const std::string& key) {
-    if (key == "right")  return event == Event::ArrowRight;
-    if (key == "left")   return event == Event::ArrowLeft;
-    if (key == "up")     return event == Event::ArrowUp;
-    if (key == "down")   return event == Event::ArrowDown;
-    if (key == "space")  return event == Event::Character(' ');
-    if (key == "enter")  return event == Event::Return;
-    if (key == "escape") return event == Event::Escape;
-    if (key.size() == 1) return event == Event::Character(key[0]);
-    return false;
-}
 
 // ---------------------------------------------------------------------------
 // Constructor / Destructor
@@ -100,6 +84,15 @@ ftxui::Component TxplayUI::build_ui() {
 
     // Click-to-play wrapper: converts mouse Release events to play commands.
     // Uses a local FTXUI ComponentBase subclass to intercept Enter and mouse.
+    //
+    // ClickToPlay sits BELOW GlobalShortcuts in the component hierarchy.
+    // It only ever receives Event::Return, either:
+    //   a) natively, when play=Enter (the default), or
+    //   b) synthesized by GlobalShortcuts step 6 when play is remapped.
+    //
+    // Checking Event::Return directly here is intentional FTXUI component
+    // behavior — it is NOT bypassing the global keybinding architecture.
+    // GlobalShortcuts has already applied the key→event translation above.
     class ClickToPlay : public ComponentBase {
         std::function<void()> on_play_;
     public:
@@ -286,7 +279,21 @@ ftxui::Component TxplayUI::build_ui() {
     });
 
     // ---- Global shortcuts + focus management -------------------------------
-    // Local ComponentBase subclass that intercepts events before the container.
+    //
+    // GlobalShortcuts intercepts events before (and after) the container.
+    //
+    // Keybinding dispatch:
+    //   1. Non-keyboard events (mouse, ticker) → pass directly to container.
+    //   2. Identify pressed RIGHT-side Key via InputAdapter::key_from_event().
+    //   3. Focus cycling (focus_next / focus_previous) → always intercept.
+    //   4. Seek (seek_forward / seek_backward) → intercept before container.
+    //   5. Navigation remapping — only intercept when user has changed the
+    //      default key; otherwise let FTXUI handle native arrow keys directly.
+    //   6. Play remapping — same principle (only when not Enter).
+    //   7. Let the container handle the event.
+    //   8. Application shortcuts — quit, play_pause, search, refresh, back,
+    //      next, previous, queue actions.
+    //
     // Reads keybindings from config_ on every event so that runtime changes
     // (future Settings UI) take effect immediately without rebuilding the UI.
     class GlobalShortcuts : public ComponentBase {
@@ -322,86 +329,123 @@ ftxui::Component TxplayUI::build_ui() {
         }
 
         bool OnEvent(Event event) override {
-            // Tab cycles only between Library and Queue.
-            // Search is reached exclusively via the search keybind ('/').
-            if (event == Event::Tab || event == Event::TabReverse) {
+            // ── 1. Pass non-keyboard events straight to the container ─────────
+            // Custom events are the 30 FPS ticker; mouse is handled by ClickToPlay.
+            if (event.is_mouse() || event == Event::Custom) {
+                return ComponentBase::OnEvent(event);
+            }
+
+            // ── 2. Convert FTXUI event to our RIGHT-side Key ──────────────────
+            const auto& kb      = config_.keybinds();
+            const Key   pressed = key_from_event(event);
+            const uint64_t seek_ms =
+                static_cast<uint64_t>(config_.playback().seek_seconds) * 1000ULL;
+
+            // ── 3. Focus cycling — always intercept (our custom Library↔Queue) ─
+            // Search is intentionally excluded from Tab cycling; reached only via
+            // the search LEFT-side binding.
+            if (pressed == kb.focus_next || pressed == kb.focus_previous) {
                 std::vector<Component> focusables = { lib_, queue_ };
                 int current = 0;
                 for (int i = 0; i < static_cast<int>(focusables.size()); i++) {
                     if (focusables[i]->Focused()) { current = i; break; }
                 }
-                current = (event == Event::Tab)
+                bool forward = (pressed == kb.focus_next);
+                current = forward
                     ? (current + 1) % static_cast<int>(focusables.size())
                     : (current - 1 + static_cast<int>(focusables.size())) % static_cast<int>(focusables.size());
                 focusables[current]->TakeFocus();
                 return true;
             }
 
-            // Read keybindings from config on every event for runtime mutability.
-            const auto& kb = config_.keybinds();
-
-            // Read seek amount from config on every event (supports runtime changes).
-            const uint64_t seek_ms =
-                static_cast<uint64_t>(config_.playback().seek_seconds) * 1000ULL;
-
-            // Seek intercept — before container steals Left/Right for focus.
-            // Driven by config-defined seek_forward / seek_backward key names.
+            // ── 4. Seek — intercept before container can steal arrow keys ─────
             if (!search_->Focused()) {
-                if (match_keybind(event, kb.seek_forward)) {
+                if (pressed == kb.seek_forward) {
                     app_.seek(app_.get_position_ms() + seek_ms);
                     return true;
                 }
-                if (match_keybind(event, kb.seek_backward)) {
+                if (pressed == kb.seek_backward) {
                     uint64_t pos = app_.get_position_ms();
                     app_.seek(pos > seek_ms ? pos - seek_ms : 0);
                     return true;
                 }
             }
 
-            // Let the focused component handle the event first.
+            // ── 5. Navigation remapping — only intercept when NOT native key ──
+            // When navigation_up=ArrowUp (default), ArrowUp passes through to
+            // the FTXUI Menu natively (step 7).  When remapped to e.g. 'k',
+            // synthesize Event::ArrowUp so the Menu still receives the correct
+            // FTXUI event it expects.
+            if (!search_->Focused()) {
+                if (kb.navigation_up != Key::arrow_up() && pressed == kb.navigation_up)
+                    return ComponentBase::OnEvent(Event::ArrowUp);
+                if (kb.navigation_down != Key::arrow_down() && pressed == kb.navigation_down)
+                    return ComponentBase::OnEvent(Event::ArrowDown);
+            }
+
+            // ── 6. Play remapping — only intercept when NOT native Enter ──────
+            // ClickToPlay handles Event::Return natively.  Only synthesize when
+            // the user has bound 'play' to a different key.
+            if (kb.play != Key::enter() && pressed == kb.play)
+                return ComponentBase::OnEvent(Event::Return);
+
+            // ── 7. Let the container handle the event (native navigation, etc.) ─
             if (ComponentBase::OnEvent(event)) return true;
 
+            // ── 8. Application shortcuts (after container had a chance) ────────
 
-            // Global shortcuts — quit
-            if (event == Event::Escape ||
-                match_keybind(event, kb.quit)) {
+            // Quit — configurable; Escape no longer quits by default.
+            if (pressed == kb.quit) {
                 keep_running_ = false;
                 screen_.Exit();
                 return true;
             }
 
-            // Global shortcuts — pause/resume
-            if (match_keybind(event, kb.pause)) {
+            // Play/Pause toggle
+            if (pressed == kb.play_pause) {
                 app_.toggle_pause();
                 return true;
             }
 
-            // Global shortcuts — focus search
-            if (match_keybind(event, kb.search)) {
+            // Focus search input
+            if (pressed == kb.search) {
                 search_->TakeFocus();
                 return true;
             }
 
-            // Global shortcuts — rescan library
-            if (match_keybind(event, kb.refresh)) {
+            // Rescan library
+            if (pressed == kb.refresh) {
                 app_.rescan_library();
                 return true;
             }
 
-            // Queue shortcuts (disabled when search has focus).
+            // Back — exit search focus; no-op elsewhere for now.
+            if (pressed == kb.back) {
+                if (search_->Focused()) {
+                    lib_->TakeFocus();
+                    return true;
+                }
+                return false;
+            }
+
+            // Next / Previous — wired to Application.
+            if (pressed == kb.next)     { app_.play_next();     return true; }
+            if (pressed == kb.previous) { app_.play_previous(); return true; }
+
+            // Queue shortcuts — disabled when search has focus.
             if (!search_->Focused()) {
-                if (match_keybind(event, kb.queue_add)) {
+                if (pressed == kb.queue_add) {
                     if (selected_library_ >= 0 &&
                         selected_library_ < static_cast<int>(filtered_tracks_.size())) {
                         app_.queue_add(filtered_tracks_[selected_library_].id);
                     }
                     return true;
                 }
-                if (match_keybind(event, kb.queue_remove)) {
+                if (pressed == kb.queue_remove) {
                     if (queue_->Focused()) app_.queue_remove(selected_queue_);
                     return true;
                 }
-                if (match_keybind(event, kb.queue_clear)) {
+                if (pressed == kb.queue_clear) {
                     if (queue_->Focused()) app_.queue_clear();
                     return true;
                 }

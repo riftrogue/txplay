@@ -7,6 +7,7 @@
 
 namespace txplay::config {
 namespace fs = std::filesystem;
+using common::Key;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -98,18 +99,28 @@ Config::Config(const std::string& config_file_path) {
 
         } else if (current_section == "Keybindings" ||
                    current_section == "Navigation") {
-            // [Navigation] is accepted as a backward-compatible alias.
+            // [Navigation] is accepted as a backward-compatible section-name alias.
             // On save(), only [Keybindings] is written.
-            if      (key == "pause")         keybinds_.pause         = value;
-            else if (key == "search")        keybinds_.search        = value;
-            else if (key == "refresh")       keybinds_.refresh       = value;
-            else if (key == "quit")          keybinds_.quit          = value;
-            else if (key == "seek_forward")  keybinds_.seek_forward  = value;
-            else if (key == "seek_backward") keybinds_.seek_backward = value;
-            else if (key == "queue_add")     keybinds_.queue_add     = value;
-            else if (key == "queue_remove")  keybinds_.queue_remove  = value;
-            else if (key == "queue_clear")   keybinds_.queue_clear   = value;
-            // play=enter is intentionally ignored (not user-configurable)
+            // Only the new LEFT-side key names are recognized; old names (e.g.
+            // "pause", "seek_forward=right") are silently ignored.
+            if      (key == "play_pause")      keybinds_.play_pause      = Key::parse(value);
+            else if (key == "next")            keybinds_.next            = Key::parse(value);
+            else if (key == "previous")        keybinds_.previous        = Key::parse(value);
+            else if (key == "navigation_up")   keybinds_.navigation_up   = Key::parse(value);
+            else if (key == "navigation_down") keybinds_.navigation_down = Key::parse(value);
+            else if (key == "focus_next")      keybinds_.focus_next      = Key::parse(value);
+            else if (key == "focus_previous")  keybinds_.focus_previous  = Key::parse(value);
+            else if (key == "play")            keybinds_.play            = Key::parse(value);
+            else if (key == "back")            keybinds_.back            = Key::parse(value);
+            else if (key == "search")          keybinds_.search          = Key::parse(value);
+            else if (key == "refresh")         keybinds_.refresh         = Key::parse(value);
+            else if (key == "quit")            keybinds_.quit            = Key::parse(value);
+            else if (key == "seek_forward")    keybinds_.seek_forward    = Key::parse(value);
+            else if (key == "seek_backward")   keybinds_.seek_backward   = Key::parse(value);
+            else if (key == "queue_add")       keybinds_.queue_add       = Key::parse(value);
+            else if (key == "queue_remove")    keybinds_.queue_remove    = Key::parse(value);
+            else if (key == "queue_clear")     keybinds_.queue_clear     = Key::parse(value);
+            // Any other key inside [Keybindings] / [Navigation] is silently ignored.
 
         } else if (current_section == "Playback") {
             if      (key == "autoplay")             playback_.autoplay             = parse_bool(value, false);
@@ -138,20 +149,30 @@ void Config::validate() {
     if (visualizer_.style.empty())
         visualizer_.style = "bars";
 
-    // Keybindings — reject empty strings; revert to defaults
+    // Keybindings — if a Key parsed as Unknown, revert to the default.
+    // Unknown results from unrecognized right-side names (e.g. old aliases
+    // like "right", "space", or genuinely invalid values like "NotAKey").
     const KeybindConfig defaults;
-    auto fix_kb = [](std::string& val, const std::string& def) {
-        if (val.empty()) val = def;
+    auto fix_kb = [](Key& val, const Key& def) {
+        if (val.is_unknown()) val = def;
     };
-    fix_kb(keybinds_.pause,         defaults.pause);
-    fix_kb(keybinds_.search,        defaults.search);
-    fix_kb(keybinds_.refresh,       defaults.refresh);
-    fix_kb(keybinds_.quit,          defaults.quit);
-    fix_kb(keybinds_.seek_forward,  defaults.seek_forward);
-    fix_kb(keybinds_.seek_backward, defaults.seek_backward);
-    fix_kb(keybinds_.queue_add,     defaults.queue_add);
-    fix_kb(keybinds_.queue_remove,  defaults.queue_remove);
-    fix_kb(keybinds_.queue_clear,   defaults.queue_clear);
+    fix_kb(keybinds_.play_pause,      defaults.play_pause);
+    fix_kb(keybinds_.next,            defaults.next);
+    fix_kb(keybinds_.previous,        defaults.previous);
+    fix_kb(keybinds_.navigation_up,   defaults.navigation_up);
+    fix_kb(keybinds_.navigation_down, defaults.navigation_down);
+    fix_kb(keybinds_.focus_next,      defaults.focus_next);
+    fix_kb(keybinds_.focus_previous,  defaults.focus_previous);
+    fix_kb(keybinds_.play,            defaults.play);
+    fix_kb(keybinds_.back,            defaults.back);
+    fix_kb(keybinds_.search,          defaults.search);
+    fix_kb(keybinds_.refresh,         defaults.refresh);
+    fix_kb(keybinds_.quit,            defaults.quit);
+    fix_kb(keybinds_.seek_forward,    defaults.seek_forward);
+    fix_kb(keybinds_.seek_backward,   defaults.seek_backward);
+    fix_kb(keybinds_.queue_add,       defaults.queue_add);
+    fix_kb(keybinds_.queue_remove,    defaults.queue_remove);
+    fix_kb(keybinds_.queue_clear,     defaults.queue_clear);
 }
 
 // ---------------------------------------------------------------------------
@@ -232,19 +253,32 @@ void Config::set_visualizer_style(const std::string& value) {
     }
 }
 
-void Config::set_keybind(const std::string& action, const std::string& key) {
-    if (key.empty()) return;
+void Config::set_keybind(const std::string& action, const std::string& key_name) {
+    // Empty key_name is a no-op (preserves existing binding).
+    if (key_name.empty()) return;
+
+    // Unrecognized right-side key names are rejected (not silently cleared).
+    Key k = Key::parse(key_name);
+    if (k.is_unknown()) return;
 
     bool changed = false;
-    if      (action == "pause"         && keybinds_.pause         != key) { keybinds_.pause         = key; changed = true; }
-    else if (action == "search"        && keybinds_.search        != key) { keybinds_.search        = key; changed = true; }
-    else if (action == "refresh"       && keybinds_.refresh       != key) { keybinds_.refresh       = key; changed = true; }
-    else if (action == "quit"          && keybinds_.quit          != key) { keybinds_.quit          = key; changed = true; }
-    else if (action == "seek_forward"  && keybinds_.seek_forward  != key) { keybinds_.seek_forward  = key; changed = true; }
-    else if (action == "seek_backward" && keybinds_.seek_backward != key) { keybinds_.seek_backward = key; changed = true; }
-    else if (action == "queue_add"     && keybinds_.queue_add     != key) { keybinds_.queue_add     = key; changed = true; }
-    else if (action == "queue_remove"  && keybinds_.queue_remove  != key) { keybinds_.queue_remove  = key; changed = true; }
-    else if (action == "queue_clear"   && keybinds_.queue_clear   != key) { keybinds_.queue_clear   = key; changed = true; }
+    if      (action == "play_pause"      && keybinds_.play_pause      != k) { keybinds_.play_pause      = k; changed = true; }
+    else if (action == "next"            && keybinds_.next            != k) { keybinds_.next            = k; changed = true; }
+    else if (action == "previous"        && keybinds_.previous        != k) { keybinds_.previous        = k; changed = true; }
+    else if (action == "navigation_up"   && keybinds_.navigation_up   != k) { keybinds_.navigation_up   = k; changed = true; }
+    else if (action == "navigation_down" && keybinds_.navigation_down != k) { keybinds_.navigation_down = k; changed = true; }
+    else if (action == "focus_next"      && keybinds_.focus_next      != k) { keybinds_.focus_next      = k; changed = true; }
+    else if (action == "focus_previous"  && keybinds_.focus_previous  != k) { keybinds_.focus_previous  = k; changed = true; }
+    else if (action == "play"            && keybinds_.play            != k) { keybinds_.play            = k; changed = true; }
+    else if (action == "back"            && keybinds_.back            != k) { keybinds_.back            = k; changed = true; }
+    else if (action == "search"          && keybinds_.search          != k) { keybinds_.search          = k; changed = true; }
+    else if (action == "refresh"         && keybinds_.refresh         != k) { keybinds_.refresh         = k; changed = true; }
+    else if (action == "quit"            && keybinds_.quit            != k) { keybinds_.quit            = k; changed = true; }
+    else if (action == "seek_forward"    && keybinds_.seek_forward    != k) { keybinds_.seek_forward    = k; changed = true; }
+    else if (action == "seek_backward"   && keybinds_.seek_backward   != k) { keybinds_.seek_backward   = k; changed = true; }
+    else if (action == "queue_add"       && keybinds_.queue_add       != k) { keybinds_.queue_add       = k; changed = true; }
+    else if (action == "queue_remove"    && keybinds_.queue_remove    != k) { keybinds_.queue_remove    = k; changed = true; }
+    else if (action == "queue_clear"     && keybinds_.queue_clear     != k) { keybinds_.queue_clear     = k; changed = true; }
 
     if (changed) modified_ = true;
 }
@@ -312,15 +346,28 @@ void Config::save() const {
         out << "\n";
 
         out << "[Keybindings]\n";
-        out << "pause="         << keybinds_.pause         << "\n";
-        out << "search="        << keybinds_.search        << "\n";
-        out << "refresh="       << keybinds_.refresh       << "\n";
-        out << "quit="          << keybinds_.quit          << "\n";
-        out << "seek_forward="  << keybinds_.seek_forward  << "\n";
-        out << "seek_backward=" << keybinds_.seek_backward << "\n";
-        out << "queue_add="     << keybinds_.queue_add     << "\n";
-        out << "queue_remove="  << keybinds_.queue_remove  << "\n";
-        out << "queue_clear="   << keybinds_.queue_clear   << "\n";
+        out << "# Playback\n";
+        out << "play_pause="      << keybinds_.play_pause.name()      << "\n";
+        out << "next="            << keybinds_.next.name()            << "\n";
+        out << "previous="        << keybinds_.previous.name()        << "\n";
+        out << "# Navigation\n";
+        out << "navigation_up="   << keybinds_.navigation_up.name()   << "\n";
+        out << "navigation_down=" << keybinds_.navigation_down.name() << "\n";
+        out << "focus_next="      << keybinds_.focus_next.name()      << "\n";
+        out << "focus_previous="  << keybinds_.focus_previous.name()  << "\n";
+        out << "play="            << keybinds_.play.name()            << "\n";
+        out << "back="            << keybinds_.back.name()            << "\n";
+        out << "# General\n";
+        out << "search="          << keybinds_.search.name()          << "\n";
+        out << "refresh="         << keybinds_.refresh.name()         << "\n";
+        out << "quit="            << keybinds_.quit.name()            << "\n";
+        out << "# Seeking\n";
+        out << "seek_forward="    << keybinds_.seek_forward.name()    << "\n";
+        out << "seek_backward="   << keybinds_.seek_backward.name()   << "\n";
+        out << "# Queue\n";
+        out << "queue_add="       << keybinds_.queue_add.name()       << "\n";
+        out << "queue_remove="    << keybinds_.queue_remove.name()    << "\n";
+        out << "queue_clear="     << keybinds_.queue_clear.name()     << "\n";
 
         if (!out.good()) {
             std::cerr << "Warning: Error while writing config to: " << tmp_path << std::endl;

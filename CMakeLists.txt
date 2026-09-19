@@ -71,7 +71,16 @@ target_link_libraries(application_test_runner PRIVATE m pthread dl)
 set(UI_SRCS
     src/ui/TxplayUI.cpp
     src/ui/Visualizer.cpp
+    src/ui/InputAdapter.cpp
 )
+
+# InputAdapter test runner (requires FTXUI to construct Event values)
+add_executable(input_adapter_test_runner
+    src/ui/input_adapter_test_runner.cpp
+    src/ui/InputAdapter.cpp
+)
+target_include_directories(input_adapter_test_runner PRIVATE ${TXPLAY_INCLUDE_DIRS})
+target_link_libraries(input_adapter_test_runner PRIVATE ftxui::screen ftxui::dom ftxui::component m pthread dl)
 
 # Main executable
 add_executable(txplay

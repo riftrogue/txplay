@@ -1,12 +1,11 @@
 
 [Navigation]
-pause=p
-search=/
-refresh=r
-quit=q
-seek_forward=right
-seek_backward=left
+play_pause=p
+search=s
+refresh=u
+quit=x
+seek_forward=ArrowRight
+seek_backward=ArrowLeft
 queue_add=a
 queue_remove=d
 queue_clear=c
-play=enter

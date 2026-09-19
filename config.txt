@@ -29,12 +29,25 @@ style=bars
 height=6
 
 [Keybindings]
-pause=space
+# Playback
+play_pause=Space
+next=n
+previous=b
+# Navigation
+navigation_up=ArrowUp
+navigation_down=ArrowDown
+focus_next=Tab
+focus_previous=ShiftTab
+play=Enter
+back=Escape
+# General
 search=/
 refresh=r
 quit=q
-seek_forward=right
-seek_backward=left
+# Seeking
+seek_forward=ArrowRight
+seek_backward=ArrowLeft
+# Queue
 queue_add=a
 queue_remove=d
 queue_clear=c

@@ -2,8 +2,8 @@
 
 #include <string>
 #include <vector>
-#include <map>
 #include "common/PathUtils.hpp"
+#include "common/Key.hpp"
 
 namespace txplay::config {
 
@@ -28,16 +28,45 @@ struct VisualizerConfig {
     int         height{6};      // terminal rows (1–20)
 };
 
+// ---------------------------------------------------------------------------
+// KeybindConfig
+//
+// Each field name is the LEFT-side vocabulary (the Txplay name for the
+// FTXUI/input event).  Each field value is the RIGHT-side Key (the physical
+// keyboard key the user has configured).
+//
+// config.txt connects them:
+//   LEFT=RIGHT   e.g.  navigation_up=ArrowUp
+//
+// Defaults match the canonical shipped config.txt.
+// ---------------------------------------------------------------------------
 struct KeybindConfig {
-    std::string pause{"space"};
-    std::string search{"/"};
-    std::string refresh{"r"};
-    std::string quit{"q"};
-    std::string seek_forward{"right"};
-    std::string seek_backward{"left"};
-    std::string queue_add{"a"};
-    std::string queue_remove{"d"};
-    std::string queue_clear{"c"};
+    // Playback
+    common::Key play_pause   {common::Key::space()};
+    common::Key next         {common::Key::character('n')};
+    common::Key previous     {common::Key::character('b')};
+
+    // Navigation (UI pane movement)
+    common::Key navigation_up  {common::Key::arrow_up()};
+    common::Key navigation_down{common::Key::arrow_down()};
+    common::Key focus_next     {common::Key::tab()};
+    common::Key focus_previous {common::Key::shift_tab()};
+    common::Key play           {common::Key::enter()};
+    common::Key back           {common::Key::escape()};
+
+    // General
+    common::Key search {common::Key::character('/')};
+    common::Key refresh{common::Key::character('r')};
+    common::Key quit   {common::Key::character('q')};
+
+    // Seeking
+    common::Key seek_forward {common::Key::arrow_right()};
+    common::Key seek_backward{common::Key::arrow_left()};
+
+    // Queue
+    common::Key queue_add   {common::Key::character('a')};
+    common::Key queue_remove{common::Key::character('d')};
+    common::Key queue_clear {common::Key::character('c')};
 };
 
 // ---------------------------------------------------------------------------
@@ -87,11 +116,15 @@ public:
     void set_visualizer_height(int value);   // clamped to [1, 20]
     void set_visualizer_style(const std::string& value);
 
-    // Keybindings
-    // action is one of: "pause", "search", "refresh", "quit",
-    //                   "seek_forward", "seek_backward",
-    //                   "queue_add", "queue_remove", "queue_clear"
-    void set_keybind(const std::string& action, const std::string& key);
+    // Keybindings — action is one of the LEFT-side names:
+    //   play_pause, next, previous,
+    //   navigation_up, navigation_down, focus_next, focus_previous, play, back,
+    //   search, refresh, quit,
+    //   seek_forward, seek_backward,
+    //   queue_add, queue_remove, queue_clear
+    // key_name uses the RIGHT-side canonical names (e.g. "ArrowUp", "n", "Space").
+    // Empty key_name or unrecognized key_name is a no-op.
+    void set_keybind(const std::string& action, const std::string& key_name);
 
     // ---- Persistence ----
     // Saves the current configuration to ~/.config/txplay/config.txt.

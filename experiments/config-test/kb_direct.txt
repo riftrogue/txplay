@@ -1,11 +1,19 @@
 
 [Keybindings]
-pause=p
+play_pause=p
+next=m
+previous=z
+navigation_up=k
+navigation_down=j
+focus_next=Tab
+focus_previous=ShiftTab
+play=Enter
+back=Escape
 search=s
 refresh=u
 quit=x
-seek_forward=j
-seek_backward=k
+seek_forward=ArrowRight
+seek_backward=ArrowLeft
 queue_add=e
 queue_remove=w
-queue_clear=z
+queue_clear=y
