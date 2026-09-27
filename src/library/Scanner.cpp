@@ -1,4 +1,5 @@
 #include "Scanner.hpp"
+#include "MetadataReader.hpp"
 #include "common/PathUtils.hpp"
 #include <filesystem>
 #include <unordered_set>
@@ -20,14 +21,22 @@ Track Scanner::create_track_from_path(const std::string& canonical_path, const s
     track.id = canonical_path;
     track.path = canonical_path;
     track.filename = filename;
-    
-    // Fallback metadata
+    track.duration_ms = 0; // Deferred — obtained via AudioEngine at playback
+
+    // Attempt to read embedded metadata (ID3, Vorbis comments, etc.) via TagLib.
+    // MetadataReader returns empty strings for absent or unreadable tags.
+    MetadataResult meta = MetadataReader::read(canonical_path);
+
+    // title: embedded tag → filename stem fallback
     fs::path p(filename);
-    track.title = p.stem().string();
-    track.artist = "Unknown Artist";
-    track.album = "Unknown Album";
-    track.duration_ms = 0; // Deferred
-    
+    track.title = meta.title.empty() ? p.stem().string() : meta.title;
+
+    // artist: embedded tag → hardcoded fallback
+    track.artist = meta.artist.empty() ? "Unknown Artist" : meta.artist;
+
+    // album: embedded tag → hardcoded fallback
+    track.album = meta.album.empty() ? "Unknown Album" : meta.album;
+
     return track;
 }
 
