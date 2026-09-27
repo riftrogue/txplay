@@ -103,6 +103,11 @@ add_executable(input_adapter_test_runner
 target_include_directories(input_adapter_test_runner PRIVATE ${TXPLAY_INCLUDE_DIRS})
 target_link_libraries(input_adapter_test_runner PRIVATE ftxui::screen ftxui::dom ftxui::component m pthread dl)
 
+# UI utility test runner (pure C++17, no FTXUI required)
+add_executable(ui_util_test_runner src/ui/ui_util_test_runner.cpp)
+target_include_directories(ui_util_test_runner PRIVATE ${TXPLAY_INCLUDE_DIRS})
+target_link_libraries(ui_util_test_runner PRIVATE m pthread dl)
+
 # Main executable
 add_executable(txplay
     src/main.cpp
