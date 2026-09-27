@@ -115,3 +115,8 @@ add_executable(txplay
 )
 target_include_directories(txplay PRIVATE ${TXPLAY_INCLUDE_DIRS} third_party/miniaudio ${TAGLIB_INCLUDE_DIRS})
 target_link_libraries(txplay PRIVATE tag ftxui::screen ftxui::dom ftxui::component m pthread dl)
+
+# Layout preview (offline visual inspection, not shipped)
+add_executable(layout_preview src/ui/layout_preview.cpp)
+target_include_directories(layout_preview PRIVATE ${TXPLAY_INCLUDE_DIRS})
+target_link_libraries(layout_preview PRIVATE ftxui::screen ftxui::dom m pthread dl)

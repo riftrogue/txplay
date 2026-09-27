@@ -26,8 +26,8 @@ namespace txplay::ui {
 // ---------------------------------------------------------------------------
 // Layout breakpoints
 // ---------------------------------------------------------------------------
-static constexpr int kWideWidth   = 100; // >= 100: wide — side-by-side + full viz
-static constexpr int kMediumWidth =  60; // >= 60:  medium — side-by-side + compact
+static constexpr int kWideWidth   = 100;
+static constexpr int kMediumWidth =  60;
 
 // ---------------------------------------------------------------------------
 // Constructor / Destructor
@@ -71,6 +71,63 @@ void TxplayUI::run() {
     keep_running_ = false;
 }
 
+// make_menu_option() — custom transform for refined song list row styling.
+//
+// The default FTXUI Menu uses a full-width inverted-color highlight block.
+// We replace it with a subtler prefix-cursor style:
+//   focused:   "▸ Title" in white/bold  (cursor is here)
+//   active:    "▸ Title" in gray        (selected but focus elsewhere)
+//   normal:    "  Title" in gray
+// ---------------------------------------------------------------------------
+static MenuOption make_menu_option() {
+    MenuOption opt = MenuOption::Vertical();
+    opt.entries_option.transform = [](const EntryState& state) -> Element {
+        Element e = text(state.label);
+        if (state.focused) {
+            return hbox({
+                text("\xe2\x96\xb8 ") | color(Color::Cyan),  // ▸
+                e | bold | color(Color::White),
+            });
+        } else if (state.active) {
+            return hbox({
+                text("\xe2\x96\xb8 ") | color(Color::GrayDark),
+                e | color(Color::GrayLight),
+            });
+        } else {
+            return hbox({
+                text("  "),
+                e | color(Color::GrayLight),
+            });
+        }
+    };
+    return opt;
+}
+
+// make_queue_menu_option() — queue rows use a dot cursor; visually secondary.
+static MenuOption make_queue_menu_option() {
+    MenuOption opt = MenuOption::Vertical();
+    opt.entries_option.transform = [](const EntryState& state) -> Element {
+        Element e = text(state.label);
+        if (state.focused) {
+            return hbox({
+                text("\xc2\xb7 ") | color(Color::Cyan),  // ·
+                e | color(Color::White),
+            });
+        } else if (state.active) {
+            return hbox({
+                text("\xc2\xb7 ") | color(Color::GrayDark),
+                e | color(Color::GrayDark),
+            });
+        } else {
+            return hbox({
+                text("  "),
+                e | color(Color::GrayDark),
+            });
+        }
+    };
+    return opt;
+}
+
 // ---------------------------------------------------------------------------
 // build_ui() — builds the FTXUI component tree
 // ---------------------------------------------------------------------------
@@ -84,17 +141,28 @@ ftxui::Component TxplayUI::build_ui() {
         }
     });
 
-    // ---- Components --------------------------------------------------------
-    auto search_input = Input(&search_query_, "Search...");
+    // Search input — styled with a custom transform.
+    // Placeholder shows the search keybind hint; content is white when typing.
+    InputOption search_opt;
+    search_opt.multiline = false;
+    search_opt.transform = [](InputState state) -> Element {
+        using namespace ftxui;
+        auto e = state.element;
+        if (state.is_placeholder) {
+            e = e | color(Color::GrayDark);
+        } else if (state.focused) {
+            e = e | color(Color::White);
+        } else {
+            e = e | color(Color::GrayLight);
+        }
+        return e;
+    };
+    auto search_input = Input(&search_query_, "/ search library...", search_opt);
 
-    auto library_menu = Menu(&library_items_, &selected_library_);
-    auto queue_menu   = Menu(&queue_items_,   &selected_queue_);
+    auto library_menu = Menu(&library_items_, &selected_library_, make_menu_option());
+    auto queue_menu   = Menu(&queue_items_,   &selected_queue_,   make_queue_menu_option());
 
     // ClickToPlay: converts mouse release / Enter on library into play_track().
-    //
-    // Sits below GlobalShortcuts. Only receives Event::Return — either natively
-    // (when play=Enter, the default) or synthesized by GlobalShortcuts when
-    // play is remapped.
     class ClickToPlay : public ComponentBase {
         std::function<void()> on_play_;
     public:
@@ -146,14 +214,13 @@ ftxui::Component TxplayUI::build_ui() {
             queue_items_.clear();
 
             if (q.empty()) {
-                queue_items_.push_back("[ Queue is empty ]");
+                queue_items_.push_back("empty");
             } else {
                 auto all_tracks = app_.get_tracks();
                 for (const auto& qid : q) {
                     bool found = false;
                     for (const auto& t : all_tracks) {
                         if (t.id == qid) {
-                            // Queue entries shown as "Title - Artist"
                             queue_items_.push_back(format_track_row(t.title, t.artist));
                             found = true;
                             break;
@@ -161,7 +228,7 @@ ftxui::Component TxplayUI::build_ui() {
                     }
                     if (!found) {
                         queue_items_.push_back(
-                            "[missing] " + qid.substr(qid.rfind('/') + 1));
+                            "[?] " + qid.substr(qid.rfind('/') + 1));
                     }
                 }
             }
@@ -181,16 +248,14 @@ ftxui::Component TxplayUI::build_ui() {
                 to_lower(track.title).find(query_lower)  != std::string::npos ||
                 to_lower(track.artist).find(query_lower) != std::string::npos) {
                 filtered_tracks_.push_back(track);
-                // Library rows: "Title - Artist" (no per-row truncation here;
-                // FTXUI clips naturally at the container boundary)
                 library_items_.push_back(format_track_row(track.title, track.artist));
             }
         }
 
         if (app_.is_scanning()) {
-            library_items_.insert(library_items_.begin(), "[ Scanning... ]");
+            library_items_.insert(library_items_.begin(), "scanning...");
         } else if (library_items_.empty()) {
-            library_items_.push_back("[ No tracks found ]");
+            library_items_.push_back("no tracks found");
         }
 
         if (selected_library_ >= static_cast<int>(library_items_.size())) {
@@ -199,103 +264,163 @@ ftxui::Component TxplayUI::build_ui() {
 
         // ---- Terminal dimensions -------------------------------------------
         auto term = Terminal::Size();
-        const int width = term.dimx;
+        const int width  = term.dimx;
 
         // ---- Now Playing data ----------------------------------------------
         NowPlayingData npd;
-        npd.track    = app_.get_current_track();
-        npd.state    = app_.get_playback_state();
+        npd.track       = app_.get_current_track();
+        npd.state       = app_.get_playback_state();
         npd.position_ms = app_.get_position_ms();
         npd.duration_ms = app_.get_duration_ms();
 
-        // ---- Visualizer ----------------------------------------------------
-        // When disabled: no element is produced at all (region disappears).
-        Element visualizer_el = text(""); // empty by default
+        // ---- Visualizer element --------------------------------------------
+        // When disabled: vector is empty, element is omitted from layout.
         bool vis_enabled = config_.visualizer().enabled;
+        Element visualizer_el = text(""); // placeholder; not used when disabled
         if (vis_enabled) {
-            auto mags      = app_.get_visualizer_magnitudes();
-            int  vis_width = std::max(1, width - 4);
-            visualizer_el  = render_visualizer(
-                mags,
-                config_.visualizer().style,
-                vis_width,
-                config_.visualizer().height
-            ) | border;
+            auto mags     = app_.get_visualizer_magnitudes();
+            int  vis_w    = std::max(1, width - 2);
+            // Use a slightly shorter height than the config value:
+            // the config height is the user's content height setting;
+            // we display it without an extra border row.
+            int  vis_h    = std::max(2, config_.visualizer().height);
+            visualizer_el = render_visualizer(mags, config_.visualizer().style,
+                                              vis_w, vis_h);
+            // Wrap in a subtle separator above for separation from song list.
+            visualizer_el = vbox({
+                separator() | color(Color::GrayDark),
+                visualizer_el,
+            });
         }
 
-        // ---- Core panel elements -------------------------------------------
-        auto header_el   = build_header();
-        auto search_box  = hbox({
-            text(" "),
+        // ---- Search bar ----------------------------------------------------
+        // Always shows a subtle left decoration.
+        // When focused: '│' in cyan; otherwise '·' in dark gray.
+        bool search_focused = search_input->Focused();
+        Element search_el = hbox({
+            text(search_focused
+                 ? "  \xe2\x94\x82 "   // │
+                 : "  \xc2\xb7 ")      // ·
+                | color(search_focused ? Color::Cyan : Color::GrayDark),
             search_input->Render() | flex,
-            text(" "),
         });
 
-        auto library_box = window(
-            hbox({ text(" SONGS "), filler() }),
-            wrapped_library_menu->Render() | vscroll_indicator | frame
-        ) | flex;
+        // ---- Section labels for songs / queue ------------------------------
+        // "songs" label with track count or status indicator.
+        std::string songs_label = "songs";
+        if (app_.is_scanning()) songs_label = "songs  \xe2\x80\xa2 scanning";
 
-        auto queue_box = window(
-            hbox({ text(" QUEUE "), filler() }),
-            queue_menu->Render() | vscroll_indicator | frame
-        ) | flex;
+        // ---- Header --------------------------------------------------------
+        auto header_el = build_header();
+
+        // ---- Now Playing ---------------------------------------------------
+        auto np = build_now_playing(npd, width, /*compact=*/true);
 
         // ---- Responsive layout selection -----------------------------------
-        //
-        // WIDE   (>= 100): header, search, songs+queue side-by-side, vis, now-playing
-        // MEDIUM (>= 60):  header, search, songs+queue side-by-side, vis, now-playing
-        // SMALL  (<  60):  header, search, one pane at a time, vis, now-playing
-        //
-        // Visualizer is omitted entirely (not just hidden) when disabled.
 
         if (width >= kMediumWidth) {
-            // Wide & Medium: both panes visible.
-            bool wide = (width >= kWideWidth);
-            auto np = build_now_playing(npd, width, /*compact=*/!wide);
+            // ---------------------------------------------------------------
+            // WIDE / MEDIUM — songs + queue side by side
+            // ---------------------------------------------------------------
+            //
+            // Layout (no border boxes):
+            //
+            //   txplay                                              local
+            //   ─────────────────────────────────────────────────────────
+            //     / search library...
+            //   songs                               queue
+            //   ─────────────────────────────────   ─────────────────
+            //   ▸ Enna Sona - A. R. Rahman           ▸ Song A
+            //     Jessie's Land - A. R. Rahman         Song B
+            //     ...                                  Song C
+            //   [visualizer if enabled]
+            //   ─────────────────────────────────────────────────────────
+            //   ▶  Enna Sona - A. R. Rahman          01:24 / 04:12
+            //      ──────────────────────────────────────────────────
+
+            const bool wide = (width >= kWideWidth);
+
+            // Songs column: primary, gets more horizontal space on wide screens.
+            Element songs_col = vbox({
+                hbox({
+                    text("  "),
+                    text(songs_label) | color(Color::GrayDark),
+                }),
+                separator() | color(Color::GrayDark),
+                wrapped_library_menu->Render() | vscroll_indicator | frame | flex,
+            }) | flex | xflex_grow_factor(wide ? 2 : 1);
+
+            // Queue column: secondary, visually lighter.
+            Element queue_col = vbox({
+                hbox({
+                    text("  "),
+                    text("queue") | color(Color::GrayDark),
+                }),
+                separator() | color(Color::GrayDark),
+                queue_menu->Render() | vscroll_indicator | frame | flex,
+            }) | flex | xflex_grow_factor(1);
 
             Elements rows;
             rows.push_back(header_el);
-            rows.push_back(search_box);
-            rows.push_back(hbox({ library_box, queue_box }) | flex);
+            rows.push_back(search_el);
+            rows.push_back(
+                hbox({
+                    songs_col,
+                    separator() | color(Color::GrayDark),
+                    queue_col,
+                }) | flex
+            );
             if (vis_enabled) rows.push_back(visualizer_el);
             rows.push_back(np);
             return vbox(std::move(rows));
 
         } else {
-            // Small / Termux: one pane at a time.
-            // small_screen_view_ toggled by Tab in GlobalShortcuts.
-            auto np = build_now_playing(npd, width, /*compact=*/true);
+            // ---------------------------------------------------------------
+            // SMALL / TERMUX — one pane at a time
+            // ---------------------------------------------------------------
+            //
+            //   txplay                          local
+            //   ─────────────────────────────────────
+            //   [songs]  queue                        (or songs  [queue])
+            //     / search library...
+            //   ▸ Enna Sona - A. R. Rahman
+            //     ...
+            //   [visualizer if enabled]
+            //   ─────────────────────────────────────
+            //   ▶  Enna Sona          01:24 / 04:12
+            //      ──────────────────────────────────
+
+            // Tab indicator — minimal, lowercase, bracket = active
+            bool songs_active = (small_screen_view_ == SmallScreenView::Songs);
+            Element tab_bar = hbox({
+                text("  "),
+                text(songs_active ? "[songs]" : " songs ")
+                    | color(songs_active ? Color::Cyan : Color::GrayDark),
+                text("  "),
+                text(!songs_active ? "[queue]" : " queue ")
+                    | color(!songs_active ? Color::Cyan : Color::GrayDark),
+                filler(),
+            });
 
             Element active_pane;
-            if (small_screen_view_ == SmallScreenView::Songs) {
+            if (songs_active) {
                 active_pane = vbox({
-                    library_box,
+                    separator() | color(Color::GrayDark),
+                    wrapped_library_menu->Render()
+                        | vscroll_indicator | frame | flex,
                 }) | flex;
             } else {
                 active_pane = vbox({
-                    queue_box,
+                    separator() | color(Color::GrayDark),
+                    queue_menu->Render()
+                        | vscroll_indicator | frame | flex,
                 }) | flex;
             }
-
-            // Small-screen tab indicator
-            Element tab_bar = hbox({
-                text(small_screen_view_ == SmallScreenView::Songs
-                     ? "[SONGS]" : " SONGS ") | bold
-                     | color(small_screen_view_ == SmallScreenView::Songs
-                             ? Color::Cyan : Color::GrayLight),
-                text(" "),
-                text(small_screen_view_ == SmallScreenView::Queue
-                     ? "[QUEUE]" : " QUEUE ") | bold
-                     | color(small_screen_view_ == SmallScreenView::Queue
-                             ? Color::Cyan : Color::GrayLight),
-                filler(),
-            });
 
             Elements rows;
             rows.push_back(header_el);
             rows.push_back(tab_bar);
-            rows.push_back(search_box);
+            rows.push_back(search_el);
             rows.push_back(active_pane);
             if (vis_enabled) rows.push_back(visualizer_el);
             rows.push_back(np);
@@ -304,22 +429,6 @@ ftxui::Component TxplayUI::build_ui() {
     });
 
     // ---- Global shortcuts + focus management -------------------------------
-    //
-    // Keybinding dispatch order:
-    //   1. Non-keyboard events (mouse, ticker) → pass to container.
-    //   2. Convert FTXUI event → txplay::common::Key.
-    //   3. Focus cycling → always intercept.
-    //      On small screen: Tab toggles SmallScreenView (Songs↔Queue).
-    //      On wide/medium:  Tab cycles between library and queue panes.
-    //   4. Seek → intercept before container can steal arrow keys.
-    //   5. Navigation remapping → only intercept when not using native keys.
-    //   6. Play remapping → only intercept when not using native Enter.
-    //   7. Let container handle (native Menu navigation, Input typing).
-    //   8. Application shortcuts (after container had a chance):
-    //      quit, play_pause, search, refresh, back, next, previous, queue_*.
-    //
-    // Config is re-read every event so future Settings changes take effect
-    // immediately without rebuilding the component tree.
     class GlobalShortcuts : public ComponentBase {
     public:
         txplay::application::Application&  app_;
@@ -357,34 +466,28 @@ ftxui::Component TxplayUI::build_ui() {
         }
 
         bool OnEvent(Event event) override {
-            // 1. Pass non-keyboard events to the container.
-            if (event.is_mouse() || event == Event::Custom) {
+            if (event.is_mouse() || event == Event::Custom)
                 return ComponentBase::OnEvent(event);
-            }
 
             const auto& kb      = config_.keybinds();
             const Key   pressed = key_from_event(event);
             const uint64_t seek_ms =
                 static_cast<uint64_t>(config_.playback().seek_seconds) * 1000ULL;
-
             const int width = Terminal::Size().dimx;
             const bool small_screen = (width < kMediumWidth);
 
-            // 3. Focus cycling.
+            // Focus cycling
             if (pressed == kb.focus_next || pressed == kb.focus_previous) {
                 if (small_screen) {
-                    // Toggle between Songs and Queue view.
                     small_screen_view_ =
                         (small_screen_view_ == SmallScreenView::Songs)
                         ? SmallScreenView::Queue
                         : SmallScreenView::Songs;
-                    // Give focus to the right component.
                     if (small_screen_view_ == SmallScreenView::Songs)
                         lib_->TakeFocus();
                     else
                         queue_->TakeFocus();
                 } else {
-                    // Wide/medium: cycle between library and queue.
                     std::vector<Component> focusables = { lib_, queue_ };
                     int current = 0;
                     for (int i = 0; i < static_cast<int>(focusables.size()); i++) {
@@ -400,7 +503,7 @@ ftxui::Component TxplayUI::build_ui() {
                 return true;
             }
 
-            // 4. Seek — intercept before container steals arrow keys.
+            // Seek
             if (!search_->Focused()) {
                 if (pressed == kb.seek_forward) {
                     app_.seek(app_.get_position_ms() + seek_ms);
@@ -413,7 +516,7 @@ ftxui::Component TxplayUI::build_ui() {
                 }
             }
 
-            // 5. Navigation remapping.
+            // Navigation remapping
             if (!search_->Focused()) {
                 if (kb.navigation_up != Key::arrow_up() && pressed == kb.navigation_up)
                     return ComponentBase::OnEvent(Event::ArrowUp);
@@ -421,45 +524,33 @@ ftxui::Component TxplayUI::build_ui() {
                     return ComponentBase::OnEvent(Event::ArrowDown);
             }
 
-            // 6. Play remapping.
+            // Play remapping
             if (kb.play != Key::enter() && pressed == kb.play)
                 return ComponentBase::OnEvent(Event::Return);
 
-            // 7. Let container handle (typing, native nav).
+            // Let container handle native navigation
             if (ComponentBase::OnEvent(event)) return true;
 
-            // 8. Application shortcuts.
+            // Application shortcuts
             if (pressed == kb.quit) {
                 keep_running_ = false;
                 screen_.Exit();
                 return true;
             }
-
-            if (pressed == kb.play_pause) {
-                app_.toggle_pause();
-                return true;
-            }
+            if (pressed == kb.play_pause) { app_.toggle_pause();    return true; }
+            if (pressed == kb.refresh)    { app_.rescan_library();  return true; }
+            if (pressed == kb.next)       { app_.play_next();       return true; }
+            if (pressed == kb.previous)   { app_.play_previous();   return true; }
 
             if (pressed == kb.search) {
                 search_->TakeFocus();
                 return true;
             }
 
-            if (pressed == kb.refresh) {
-                app_.rescan_library();
-                return true;
-            }
-
             if (pressed == kb.back) {
-                if (search_->Focused()) {
-                    lib_->TakeFocus();
-                    return true;
-                }
+                if (search_->Focused()) { lib_->TakeFocus(); return true; }
                 return false;
             }
-
-            if (pressed == kb.next)     { app_.play_next();     return true; }
-            if (pressed == kb.previous) { app_.play_previous(); return true; }
 
             if (!search_->Focused()) {
                 if (pressed == kb.queue_add) {

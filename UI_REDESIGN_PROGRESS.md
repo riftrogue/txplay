@@ -1,7 +1,7 @@
 # Txplay UI Redesign Progress
 
 ## Overall Status
-**COMPLETE** — Phases 0–3 done and committed.
+**PHASE 4 COMPLETE** — Visual refinement done. Build clean. All tests pass.
 
 ---
 
@@ -131,20 +131,114 @@ TxplayUI → Config (reads only)
 
 ---
 
-## Next Action (Phase 3)
-**Phase 3: Full regression + git commit**
+## Phase 4 — Visual / UX Refinement
 
-1. Run all tests one more time
-2. Inspect final git diff for any unintentional changes
-3. Commit with descriptive message
-4. Mark this file as COMPLETE
+### Visual Problems Identified
+1. `window()` boxes around Songs, Queue created heavy rectangles consuming visual weight
+2. Visualizer had `| border` — third heavy box
+3. NowPlaying had `| border` — looked like another panel, not a footer
+4. Header had no visual separation from content below
+5. Search had no left-side decoration and no styled placeholder
+6. FTXUI default Menu used full-width inverted highlight blocks
+7. Songs/Queue took equal horizontal space (1:1 ratio) regardless of importance
+8. Nothing-playing state used ugly hardcoded text
+9. Idle progress bar used ASCII dashes, inconsistent with seek bar
+10. Visualizer had no separator to anchor it visually in the layout
 
-Optionally extend:
-- Verify truncation visually with narrow terminal
-- Verify visualizer-disabled behavior 
-- Verify small-screen tab navigation behavior
+### Changes Made
 
----
+#### `src/ui/components/Header.hpp`
+- Lowercased app name: `TXPLAY → txplay` (calmer, more modern)
+- Lowercased badge: `LOCAL → local`
+- Added `separator()` below header hbox — single line that separates identity from content
+- Removed color decoration; cyan for app name only
+
+#### `src/ui/components/NowPlaying.hpp`
+- Removed `| border` entirely — replaced with `separator()` above
+- Component now feels like an anchored footer, not a framed panel
+- Idle state: `·  ready` + `●────` (seek bar at 0) — subtle, not an error message
+- Playing state: `▶  Title - Artist  (right-aligned)  01:24 / 04:24`
+- Track label color: `Color::White` (was `Color::Cyan`) — calmer during playback
+- Status icon when stopped: `·` (middle dot) instead of `⏹` — much less intrusive
+
+#### `src/ui/TxplayUI.cpp`
+
+**Song list:**
+- Removed `window()` box — replaced with section label `songs` in `Color::GrayDark` + `separator()`
+- Songs column gets `xflex_grow_factor(2)` on wide, `xflex_grow_factor(1)` on medium
+- Queue column gets `xflex_grow_factor(1)` always
+- Vertical separator `|` between columns replaces right-edge box borders
+
+**Queue:**
+- Same treatment as songs — section label + separator, no box
+- Queue items shown as `Title - Artist`; empty state shows `empty` (lowercase, subtle)
+
+**Selection style (custom MenuOption transform):**
+- Songs focused row: `▸ Title - Artist` (cyan `▸` + white bold text)
+- Songs active row (focus elsewhere): `▸ Title - Artist` (gray `▸` + gray-light text)
+- Songs normal row: `  Title - Artist` (gray-light text, no cursor)
+- Queue focused row: `· Title - Artist` (cyan `·` + white text)
+- Queue normal row: `  Title - Artist` (dark gray text — visually secondary)
+
+**Search bar:**
+- Custom `InputOption::transform`: placeholder=GrayDark, focused=White, unfocused=GrayLight
+- Left decoration: `│` (box pipe) in Cyan when focused, `·` in GrayDark otherwise
+- Always shows the decoration for visual anchor
+
+**Visualizer:**
+- Removed `| border`
+- Added `separator()` above visualizer element so it doesn’t float free
+- Renders flush in the layout with no extra framing
+- Disabled = nothing in the layout (existing behavior preserved)
+
+**Layout composition:**
+- Wide (>= 100): `header | search | [songs 2:1 queue] | [vis] | now-playing`
+- Medium (>= 60): `header | search | [songs 1:1 queue] | [vis] | now-playing`
+- Small (< 60): `header | [songs]/[queue] tab | search | active-pane | [vis] | now-playing`
+
+**Borders used (after refinement):**
+- Header: none (separator line only)
+- Search: none
+- Songs: none (separator line only)
+- Queue: none (separator line only)
+- Visualizer: none (separator line only above)
+- NowPlaying: none (separator line only above)
+- Total rectangular borders: **0** (was 4)
+
+### Tests
+- `config_test_runner`: 26/26 ✅
+- `input_adapter_test_runner`: 10/10 ✅
+- `ui_util_test_runner`: 3/3 ✅
+- `library_test_runner`: all pass ✅
+- `application_test_runner`: all pass ✅
+- `txplay` build: clean, zero errors ✅
+
+### Files Changed
+| File | Change |
+|---|---|
+| `src/ui/components/Header.hpp` | Lowercase, separator, color refinement |
+| `src/ui/components/NowPlaying.hpp` | Remove border, separator footer, idle seek bar |
+| `src/ui/TxplayUI.cpp` | Custom MenuOption, box-free layout, search style, vis separator |
+| `src/ui/layout_preview.cpp` | New: offline visual inspection tool |
+| `CMakeLists.txt` | Added `layout_preview` target |
+
+### Functionality Preserved
+- All keyboard shortcuts work identically
+- Search: `/ ` key focuses, filter works
+- Song selection + playback (Enter / click)
+- Pause/resume, next, previous, seek
+- Queue: add, remove, clear, navigate
+- Small-screen Tab toggle (Songs ⇔ Queue)
+- Visualizer on/off (controlled by config)
+- Visualizer disabled = no empty region
+- Now playing: playing/paused/stopped states all correct
+
+### Remaining Visual Issues
+1. FTXUI’s `vscroll_indicator` draws a small scrollbar on the right edge of the menu frame — may look odd in very narrow terminals. Acceptable for now.
+2. The `frame` decorator on menu content adds a small implicit margin. Removing it may cause cursor-follow to stop working. Left in place.
+3. Wide layout does not reserve a fixed height for the visualizer — its height comes from `config.visualizer.height` (default 6). Large values may crowd the song list. User-configurable; not a code bug.
+4. On terminals with no true-color support, some `Color::GrayDark` / `Color::GrayLight` differences may collapse. This is a terminal capability issue, not a code issue.
+5. The `layout_preview.cpp` tool is not shipped but lives in `src/ui/` and `CMakeLists.txt`. Should be moved to a `tools/` or `dev/` directory in a future cleanup.
 
 ## What the Next Session Must NOT Redo
 - The metadata integration is committed. Do not redo it.
