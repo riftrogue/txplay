@@ -86,6 +86,9 @@ int main() {
     assert(tracks[0].duration_ms == 0);
 
     // Re-scan to prove deterministic ordering doesn't change
+    uint64_t v1 = lib.get_version();
+    assert(v1 > 0); // A-01: version must have been incremented by the first scan
+
     lib.scan_async(paths);
     while (lib.is_scanning()) std::this_thread::sleep_for(10ms);
     
@@ -94,6 +97,11 @@ int main() {
     for (size_t i = 0; i < tracks.size(); ++i) {
         assert(tracks[i].path == tracks2[i].path);
     }
+
+    // A-01: version must have incremented again after the rescan.
+    uint64_t v2 = lib.get_version();
+    assert(v2 > v1);
+    std::cout << "  Version counter: v1=" << v1 << " v2=" << v2 << " (correct)." << std::endl;
 
     std::cout << "All library assertions passed!" << std::endl;
     return 0;

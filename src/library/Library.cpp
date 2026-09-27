@@ -6,7 +6,13 @@ namespace txplay::library {
 Library::Library() = default;
 
 Library::~Library() {
-    // We must safely join the scanner thread before destruction if it's active
+    // Join the scanner thread before destruction.
+    // LIFECYCLE NOTE: This join is intentionally synchronous and has no
+    // cooperative cancellation mechanism. The wait duration is bounded by
+    // the filesystem traversal time of the configured music paths.
+    // For typical local directories this completes in under one second.
+    // Callers using very large network-mounted paths should be aware that
+    // exit may block until the scan finishes.
     if (scanner_thread_.joinable()) {
         scanner_thread_.join();
     }
@@ -42,6 +48,14 @@ std::vector<std::string> Library::get_last_errors() const {
     return last_errors_;
 }
 
+// A-01: returns the current version counter under data_mutex_.
+// Application compares this against its cached library_version_ to detect
+// whether library_snapshot_ needs refreshing.
+uint64_t Library::get_version() const {
+    std::lock_guard<std::mutex> lock(data_mutex_);
+    return version_;
+}
+
 void Library::scan_worker(std::vector<std::string> paths) {
     // Perform the heavy filesystem traversal completely lock-free
     ScanResult result = Scanner::scan(paths);
@@ -51,6 +65,7 @@ void Library::scan_worker(std::vector<std::string> paths) {
         std::lock_guard<std::mutex> lock(data_mutex_);
         tracks_ = std::move(result.tracks);
         last_errors_ = std::move(result.errors);
+        ++version_; // A-01: bump version inside the same lock as tracks_ replacement
     }
 
     // Mark scan as complete

@@ -41,9 +41,10 @@ void AudioEngine::stop_internal() {
     
     // UI Thread safely requests a flush via epoch synchronization.
     // At this point, the DecoderThread is completely joined and dead.
-    // We can safely act as the producer of the flush_epoch_ to flush the playback buffer.
-    uint64_t next_epoch = flush_epoch_.load(std::memory_order_relaxed) + 1;
-    flush_epoch_.store(next_epoch, std::memory_order_release);
+    // fetch_add is used (rather than load+increment+store) so that if a future
+    // code path ever reaches here concurrently with the decoder's seek handler,
+    // the increment is atomic and no epoch value is lost.
+    uint64_t next_epoch = flush_epoch_.fetch_add(1, std::memory_order_acq_rel) + 1;
     
     // Wait for the still-running callback to observe and ack the epoch.
     while (ack_epoch_.load(std::memory_order_acquire) != next_epoch) {

@@ -61,6 +61,10 @@ void AudioDevice::data_callback(ma_device* pDevice, void* pOutput, const void* p
     if (flush != self->ack_epoch_.load(std::memory_order_relaxed)) {
         // Safe: AudioDevice callback is the ONLY consumer of the Playback Buffer.
         self->playback_buffer_->flush_consumer_only();
+        // Also flush the analysis buffer so the Analyzer does not process stale
+        // PCM from the previous track after a seek or track change.
+        // Safe: AudioDevice callback is also the ONLY consumer of the Analysis Buffer.
+        self->analysis_buffer_->flush_consumer_only();
         self->ack_epoch_.store(flush, std::memory_order_release);
     }
 

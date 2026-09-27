@@ -32,6 +32,19 @@ DecoderThread::~DecoderThread() {
 void DecoderThread::stop_and_join() {
     stop_flag_.store(true, std::memory_order_release);
     if (thread_.joinable()) {
+        // SHUTDOWN NOTE (A-02): This join is synchronous and can block.
+        //
+        // After stop_flag_ is set, the decoder loop exits only at the top of its
+        // next iteration. Between flag-set and exit the decoder thread may be:
+        //   - sleeping up to 5 ms (buffer-full branch) or 10 ms (EOF branch), or
+        //   - inside ma_decoder_read_pcm_frames(), which calls fread() synchronously.
+        //
+        // On local storage, measured track-transition time was 3–13 ms total,
+        // dominated by the buffer-full sleep, not the I/O call itself.
+        //
+        // On slow or network-mounted filesystems, fread() may block for an
+        // arbitrarily long time. This is an accepted limitation of the current
+        // synchronous decoder architecture. See audit A-02.
         thread_.join();
     }
     if (valid_) {
@@ -69,9 +82,10 @@ void DecoderThread::loop() {
             current_frame_.store(target_frame, std::memory_order_relaxed);
             eof_.store(false, std::memory_order_relaxed);
 
-            // Trigger flush epoch
-            uint64_t next_epoch = flush_epoch_.load(std::memory_order_relaxed) + 1;
-            flush_epoch_.store(next_epoch, std::memory_order_release);
+            // Trigger flush epoch atomically. fetch_add prevents a lost
+            // increment if stop_internal() on the UI thread races with
+            // this seek handler before the decoder thread is joined.
+            uint64_t next_epoch = flush_epoch_.fetch_add(1, std::memory_order_acq_rel) + 1;
 
             // Wait for callback to acknowledge
             while (ack_epoch_.load(std::memory_order_acquire) != next_epoch && !stop_flag_.load(std::memory_order_acquire)) {

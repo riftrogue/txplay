@@ -740,6 +740,60 @@ int main() {
         std::cout << "  NP10 passed." << std::endl;
     }
 
+    // =========================================================================
+    // A-01 Snapshot Tests
+    // =========================================================================
+    std::cout << "\n--- A-01 Snapshot Tests ---" << std::endl;
+
+    // SN1: get_tracks() populates the snapshot; tracks are visible immediately
+    // (no update() call required) and are correct.
+    {
+        std::cout << "SN1: get_tracks() populates snapshot without update()..." << std::endl;
+        auto cfg = make_test_config(paths);
+        Application sn_app(cfg);
+        wait_scan(sn_app);
+
+        // No update() called yet — get_tracks() must still return correct data.
+        auto t = sn_app.get_tracks();
+        assert(t.size() == 2);
+
+        // Snapshot is now populated; play_track() must succeed using it.
+        std::string first = (t[0].filename < t[1].filename) ? t[0].id : t[1].id;
+        bool ok = sn_app.play_track(first);
+        assert(ok);
+        assert(sn_app.get_current_track().has_value());
+        assert(sn_app.get_current_track()->id == first);
+        std::cout << "  SN1 passed." << std::endl;
+    }
+
+    // SN2: after a rescan, update() refreshes the snapshot and the new library
+    // is visible through get_tracks().
+    {
+        std::cout << "SN2: snapshot refreshed after rescan via update()..." << std::endl;
+        auto cfg = make_test_config(paths);
+        Application sn_app(cfg);
+        wait_scan(sn_app);
+
+        auto before = sn_app.get_tracks();
+        assert(before.size() == 2);
+
+        // Trigger a rescan (same paths \u2014 same result, but version increments).
+        sn_app.rescan_library();
+        wait_scan(sn_app);
+
+        // Call update() \u2014 this calls refresh_snapshot() which should detect the
+        // new version and update the snapshot.
+        sn_app.update();
+
+        auto after = sn_app.get_tracks();
+        assert(after.size() == 2);
+        // Verify the snapshot content is still correct after refresh.
+        for (size_t i = 0; i < before.size(); ++i) {
+            assert(before[i].path == after[i].path);
+        }
+        std::cout << "  SN2 passed." << std::endl;
+    }
+
     std::cout << "\nAll Application + Queue + Autoplay + Next/Previous assertions passed!" << std::endl;
     return 0;
 }

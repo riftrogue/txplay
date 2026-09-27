@@ -13,6 +13,25 @@ Application::Application(txplay::config::Config& config)
     state_ = ApplicationState::Ready;
 }
 
+// ---------------------------------------------------------------------------
+// A-01: refresh_snapshot() — refreshes the Application-owned library snapshot.
+//
+// Reads the Library version counter (one mutex acquire/release).  If the
+// version has not changed since the last refresh, returns immediately with no
+// copy.  If the version has changed, calls library_.get_tracks() to refresh
+// the snapshot (one additional mutex acquire/release + one vector copy).
+//
+// Called from update() once per frame.  Also callable from const query methods
+// (get_tracks, get_current_track) and from public command methods that may be
+// invoked directly via FTXUI event handlers before the next update() runs.
+// ---------------------------------------------------------------------------
+void Application::refresh_snapshot() const {
+    uint64_t v = library_.get_version();
+    if (v == library_version_) return;
+    library_snapshot_ = library_.get_tracks();
+    library_version_  = v;
+}
+
 Application::~Application() {
     // Stop playback explicitly before engines are destroyed by RAII
     audio_engine_.stop();
@@ -26,9 +45,14 @@ bool Application::play_track(const std::string& track_id) {
     // applies freshly to any subsequent autoplay sequence.
     reset_autoplay_counter();
 
+    // A-01: ensure the snapshot is current before searching.
+    // play_track() may be called directly from FTXUI event handlers before
+    // the next update() runs, so we cannot rely solely on update().
+    refresh_snapshot();
+
     // 1. Find the Track in Library by its canonical path/ID.
     std::optional<library::Track> target_track = std::nullopt;
-    for (const auto& track : library_.get_tracks()) {
+    for (const auto& track : library_snapshot_) {
         if (track.id == track_id) {
             target_track = track;
             break;
@@ -71,6 +95,9 @@ bool Application::play_track(const std::string& track_id) {
 // Resets the autoplay counter so a subsequent auto-advance starts fresh.
 // ---------------------------------------------------------------------------
 void Application::play_next() {
+    // A-01: ensure snapshot is current; play_next() is called from event handlers.
+    refresh_snapshot();
+
     // Step 1: consume the queue front (if any).
     if (!queue_.empty()) {
         // Reuse advance_queue() mechanics: pop-and-play, skip invalid entries.
@@ -83,7 +110,8 @@ void Application::play_next() {
 
     // Step 2: no usable queue entry — advance in library order.
     // Shuffle is not yet implemented; the library-order path is always used.
-    auto tracks = library_.get_tracks();
+    // A-01: snapshot was refreshed at the start of play_next(); use it directly.
+    const auto& tracks = library_snapshot_;
     if (tracks.empty()) return;
 
     // Find the current track's position in the library.
@@ -131,9 +159,12 @@ void Application::play_next() {
 void Application::play_previous() {
     if (previous_track_id_.empty()) return; // no history — do nothing
 
+    // A-01: ensure snapshot is current; play_previous() is called from event handlers.
+    refresh_snapshot();
+
     // Locate the previous track in the library.
     std::optional<library::Track> prev_track = std::nullopt;
-    for (const auto& t : library_.get_tracks()) {
+    for (const auto& t : library_snapshot_) {
         if (t.id == previous_track_id_) { prev_track = t; break; }
     }
 
@@ -232,8 +263,10 @@ bool Application::advance_queue() {
 
         // Locate the track without going through play_track() to avoid
         // resetting the autoplay counter mid-queue.
+        // A-01: advance_queue() is only called from update(), which has already
+        // called refresh_snapshot(). Use library_snapshot_ directly.
         std::optional<library::Track> target = std::nullopt;
-        for (const auto& t : library_.get_tracks()) {
+        for (const auto& t : library_snapshot_) {
             if (t.id == next_id) { target = t; break; }
         }
 
@@ -271,7 +304,9 @@ bool Application::advance_autoplay() {
         return false;
     }
 
-    auto tracks = library_.get_tracks();
+    // A-01: advance_autoplay() is only called from update(), which has already
+    // called refresh_snapshot(). Use library_snapshot_ via const ref; no copy.
+    const auto& tracks = library_snapshot_;
     if (tracks.empty()) return false;
 
     // Determine starting index: find current track in the library, then
@@ -318,6 +353,11 @@ bool Application::advance_autoplay() {
 //   2. Queue empty + autoplay=true? → advance_autoplay() (respects limit)
 //   3. Otherwise → stop cleanly
 void Application::update() {
+    // A-01: refresh the library snapshot once per frame before any downstream
+    // work. advance_queue() and advance_autoplay() use library_snapshot_ directly
+    // and rely on this call having run first.
+    refresh_snapshot();
+
     // Guard: only act on EOF once per track lifetime.
     // eof_processed_ is reset in play_track()/advance_queue()/advance_autoplay()
     // whenever a new track starts.
@@ -362,9 +402,11 @@ std::optional<library::Track> Application::get_current_track() const {
         return std::nullopt;
     }
 
-    // Resolve against the active library vector
-    auto tracks = library_.get_tracks();
-    for (const auto& track : tracks) {
+    // A-01: refresh snapshot if needed. get_current_track() is called by the
+    // UI renderer after update() (snapshot already current) and by tests
+    // directly (may need to force a refresh).
+    refresh_snapshot();
+    for (const auto& track : library_snapshot_) {
         if (track.id == current_track_id_) {
             return track;
         }
@@ -391,7 +433,13 @@ bool Application::is_scanning() const {
 }
 
 std::vector<library::Track> Application::get_tracks() const {
-    return library_.get_tracks();
+    // A-01: refresh snapshot if the Library has a newer version, then return
+    // a copy of the snapshot. This ensures correct behavior when get_tracks()
+    // is called before the first update() (e.g., in tests and direct event
+    // handlers). Within a normal UI frame, refresh_snapshot() was already
+    // called by update() at frame start, so this is a cheap version check.
+    refresh_snapshot();
+    return library_snapshot_;
 }
 
 std::vector<std::string> Application::get_library_errors() const {

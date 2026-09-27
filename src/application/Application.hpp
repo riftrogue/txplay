@@ -121,6 +121,15 @@ private:
     // AudioEngine must be stopped and destroyed before Library.
     library::Library library_;
     audio::AudioEngine audio_engine_;
+
+    // A-01: Application-owned library snapshot.
+    // Refreshed by refresh_snapshot() (called from update() and const query
+    // methods) whenever the Library version changes.  All internal lookups
+    // use this snapshot instead of calling library_.get_tracks() repeatedly.
+    // Declared mutable so refresh_snapshot() can be called from const methods.
+    mutable std::vector<library::Track> library_snapshot_;
+    mutable uint64_t                    library_version_{0};
+    void refresh_snapshot() const;
 };
 
 } // namespace txplay::application
