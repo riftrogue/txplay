@@ -31,11 +31,26 @@ Track Scanner::create_track_from_path(const std::string& canonical_path, const s
     return track;
 }
 
-ScanResult Scanner::scan(const std::vector<std::string>& config_paths) {
+// A-03: stop_requested is checked once per directory entry (after the iterator
+// has advanced but before per-file stat/canonical work).  Individual syscalls
+// (readdir, stat, realpath) run to completion and cannot be interrupted by a
+// flag; cancellation is therefore best-effort between entries.
+// If cancellation is detected, result.cancelled is set to true and the
+// function returns immediately with whatever partial result has been built so
+// far.  Library::scan_worker() inspects the flag and discards the partial
+// result rather than committing it.
+ScanResult Scanner::scan(const std::vector<std::string>& config_paths,
+                         const std::atomic<bool>& stop_requested) {
     ScanResult result;
     std::unordered_set<std::string> seen_canonical_paths;
 
     for (const auto& raw_path : config_paths) {
+        // A-03: check before starting traversal of each configured root.
+        if (stop_requested.load(std::memory_order_relaxed)) {
+            result.cancelled = true;
+            return result;
+        }
+
         std::string expanded = txplay::common::expand_tilde(raw_path);
         fs::path root_path(expanded);
 
@@ -51,6 +66,14 @@ ScanResult Scanner::scan(const std::vector<std::string>& config_paths) {
              it != fs::recursive_directory_iterator(); 
              it.increment(ec)) {
             
+            // A-03: check once per directory entry, after iterator has advanced.
+            // This is the finest-grained point where a check is cheap; it sits
+            // before any per-entry stat() or realpath() work.
+            if (stop_requested.load(std::memory_order_relaxed)) {
+                result.cancelled = true;
+                return result;
+            }
+
             if (ec) {
                 result.errors.push_back("Error traversing: " + ec.message());
                 ec.clear();
@@ -92,6 +115,14 @@ ScanResult Scanner::scan(const std::vector<std::string>& config_paths) {
         }
     }
 
+    // A-03: final check after traversal but before sort.  Avoids sorting a
+    // result that is about to be discarded, and catches cancellations that
+    // arrived while iterating the last directory root.
+    if (stop_requested.load(std::memory_order_relaxed)) {
+        result.cancelled = true;
+        return result;
+    }
+
     // Deterministic ordering by canonical path
     std::sort(result.tracks.begin(), result.tracks.end(), [](const Track& a, const Track& b) {
         return a.path < b.path;
@@ -101,3 +132,4 @@ ScanResult Scanner::scan(const std::vector<std::string>& config_paths) {
 }
 
 } // namespace txplay::library
+

@@ -37,6 +37,11 @@ private:
     void scan_worker(std::vector<std::string> paths);
 
     std::atomic<bool> is_scanning_{false};
+    // A-03: cooperative cancellation flag for the scanner thread.
+    // Set to true by request_scan_stop() (called from ~Library and indirectly
+    // from scan_async before restarting a new scan). Reset to false in
+    // scan_async() before each new scan launches.
+    std::atomic<bool> scan_stop_requested_{false};
     std::thread scanner_thread_;
 
     mutable std::mutex data_mutex_;
