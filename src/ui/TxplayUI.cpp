@@ -274,19 +274,22 @@ ftxui::Component TxplayUI::build_ui() {
         npd.duration_ms = app_.get_duration_ms();
 
         // ---- Visualizer element --------------------------------------------
-        // When disabled: vector is empty, element is omitted from layout.
+        // When disabled: element is omitted from layout entirely.
+        // Height is responsive: wide→11, medium→8, small→5.
+        // This overrides config.visualizer.height to provide layout-aware sizing.
         bool vis_enabled = config_.visualizer().enabled;
         Element visualizer_el = text(""); // placeholder; not used when disabled
         if (vis_enabled) {
-            auto mags     = app_.get_visualizer_magnitudes();
-            int  vis_w    = std::max(1, width - 2);
-            // Use a slightly shorter height than the config value:
-            // the config height is the user's content height setting;
-            // we display it without an extra border row.
-            int  vis_h    = std::max(2, config_.visualizer().height);
+            auto mags   = app_.get_visualizer_magnitudes();
+            int  vis_w  = std::max(1, width - 2);
+            // Responsive height: large on wide terminals, compact on narrow.
+            int  vis_h;
+            if (width >= kWideWidth)   vis_h = 11;
+            else if (width >= kMediumWidth) vis_h = 8;
+            else                       vis_h = 5;
             visualizer_el = render_visualizer(mags, config_.visualizer().style,
                                               vis_w, vis_h);
-            // Wrap in a subtle separator above for separation from song list.
+            // Separator above for visual separation from song list.
             visualizer_el = vbox({
                 separator() | color(Color::GrayDark),
                 visualizer_el,
@@ -360,6 +363,11 @@ ftxui::Component TxplayUI::build_ui() {
                 queue_menu->Render() | vscroll_indicator | frame | flex,
             }) | flex | xflex_grow_factor(1);
 
+            // Song+Queue height cap: prevents the list from consuming the full
+            // terminal. User can scroll; bounded height reclaims space for
+            // the visualizer and NowPlaying. Cap: wide→10, medium→8.
+            const int list_height = wide ? 10 : 8;
+
             Elements rows;
             rows.push_back(header_el);
             rows.push_back(search_el);
@@ -368,7 +376,7 @@ ftxui::Component TxplayUI::build_ui() {
                     songs_col,
                     separator() | color(Color::GrayDark),
                     queue_col,
-                }) | flex
+                }) | size(HEIGHT, LESS_THAN, list_height)
             );
             if (vis_enabled) rows.push_back(visualizer_el);
             rows.push_back(np);
@@ -421,7 +429,8 @@ ftxui::Component TxplayUI::build_ui() {
             rows.push_back(header_el);
             rows.push_back(tab_bar);
             rows.push_back(search_el);
-            rows.push_back(active_pane);
+            // Small screen: cap song list height to reclaim space.
+            rows.push_back(active_pane | size(HEIGHT, LESS_THAN, 6));
             if (vis_enabled) rows.push_back(visualizer_el);
             rows.push_back(np);
             return vbox(std::move(rows));

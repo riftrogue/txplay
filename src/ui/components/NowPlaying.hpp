@@ -5,12 +5,17 @@
 // Pure element builder: no mutable state, no FTXUI components.
 //
 // Visual design intent:
-//   - A separator line anchors it as the "footer" of the application.
-//   - No border box — it should feel integrated, not framed.
-//   - Track line: icon + "Title - Artist" (left) + "01:24 / 04:12" (right)
-//   - Progress line: subtle seek bar spanning the full width
+//   - Proper bordered rectangle, matching the header's border language.
+//   - Track information on one row: icon + label (left) + time (right).
+//   - Progress bar on its own row below.
+//   - Padding inside the border for breathing room (~3-4 rows total).
 //
-// Nothing-playing state: minimal idle line, not an error message.
+//   ┌──────────────────────────────────────────────────────────────┐
+//   │  ▶  Chaleya - Arijit Singh                    00:36 / 03:20 │
+//   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+//   └──────────────────────────────────────────────────────────────┘
+//
+// Nothing-playing idle state uses the same border with a subtle message.
 
 #include <string>
 #include <optional>
@@ -37,33 +42,33 @@ struct NowPlayingData {
 };
 
 // ---------------------------------------------------------------------------
-// status_icon() — Unicode play/pause/stop indicator.
+// status_icon()
 // ---------------------------------------------------------------------------
 inline std::string status_icon(txplay::audio::PlaybackState s) {
     using PS = txplay::audio::PlaybackState;
-    if (s == PS::Playing) return "\xe2\x96\xb6"; // ▶
-    if (s == PS::Paused)  return "\xe2\x8f\xb8"; // ⏸
-    return "\xc2\xb7";                            // · (stopped — subtle)
+    if (s == PS::Playing) return "\xe2\x8f\xb8"; // ⏸  (playing → press to pause)
+    if (s == PS::Paused)  return "\xe2\x96\xb6"; // ▶  (paused  → press to play)
+    return "\xc2\xb7";                            // ·  (stopped — subtle)
 }
 
 // ---------------------------------------------------------------------------
 // build_now_playing()
 //
-// Builds the persistent bottom player bar.
-// `compact` param is kept for API compatibility but the layout is the same
-// in both modes — the bar is always 3 rows: separator + track + progress.
+// Renders the bottom player panel as a proper bordered box.
+// terminal_width is used to budget the label truncation.
+// The `compact` param is kept for API compatibility; layout is always the same.
 // ---------------------------------------------------------------------------
 inline ftxui::Element build_now_playing(const NowPlayingData& d,
                                         int terminal_width,
                                         bool /*compact*/) {
     using namespace ftxui;
 
-    const int inner_width = std::max(10, terminal_width - 2);
+    // Inner width for seek bar: subtract border (2) + side padding (4).
+    const int bar_w = std::max(10, terminal_width - 6);
 
     if (!d.track) {
-        // Nothing selected — one subtle idle line.
+        // Idle state: same border shape, subtle content.
         return vbox({
-            separator() | color(Color::GrayDark),
             hbox({
                 text("  "),
                 text(status_icon(txplay::audio::PlaybackState::Stopped))
@@ -71,14 +76,12 @@ inline ftxui::Element build_now_playing(const NowPlayingData& d,
                 text("  ready") | color(Color::GrayDark),
                 filler(),
             }),
-            // Empty seek bar (position 0) for visual consistency.
             hbox({
                 text("  "),
-                build_seek_bar(0.0f, std::max(10, inner_width - 4))
-                    | color(Color::GrayDark),
+                build_seek_bar(0.0f, bar_w) | color(Color::GrayDark),
                 text("  "),
             }),
-        });
+        }) | border | color(Color::GrayDark);
     }
 
     // ----- Track is playing / paused -----
@@ -95,17 +98,17 @@ inline ftxui::Element build_now_playing(const NowPlayingData& d,
         ? static_cast<float>(pos_ms) / static_cast<float>(d.duration_ms)
         : 0.0f;
 
-    // Budget for track label: width minus icon(3) minus time(len) minus padding(6)
+    // Label budget: terminal_width minus border(2) minus icon(4) minus
+    //              time string minus side padding(6).
     const int label_budget = terminal_width
-        - 3                                         // icon + space
+        - 2                                         // border chars
+        - 4                                         // icon + spaces
         - static_cast<int>(time_str.size())
         - 6;                                        // padding both sides
     const std::string display_label =
         truncate_track_row(t.title, t.artist, std::max(8, label_budget));
 
-    // Seek bar width: full inner width minus small indent on both sides.
-    const int bar_w = std::max(10, inner_width - 4);
-
+    // Track line: icon + label (flex) + right-aligned time.
     Element track_line = hbox({
         text("  "),
         text(status_icon(d.state)) | color(Color::Cyan),
@@ -115,6 +118,7 @@ inline ftxui::Element build_now_playing(const NowPlayingData& d,
         text("  "),
     });
 
+    // Progress bar on its own row.
     Element seek_line = hbox({
         text("  "),
         build_seek_bar(progress, bar_w) | color(Color::GrayDark),
@@ -122,10 +126,9 @@ inline ftxui::Element build_now_playing(const NowPlayingData& d,
     });
 
     return vbox({
-        separator() | color(Color::GrayDark),
         track_line,
         seek_line,
-    });
+    }) | border | color(Color::GrayDark);
 }
 
 } // namespace txplay::ui
