@@ -262,9 +262,9 @@ ftxui::Component TxplayUI::build_ui() {
             selected_library_ = std::max(0, static_cast<int>(library_items_.size()) - 1);
         }
 
-        // ---- Terminal dimensions -------------------------------------------
         auto term = Terminal::Size();
-        const int width  = term.dimx;
+        const int width   = term.dimx;
+        const int term_h  = term.dimy;
 
         // ---- Now Playing data ----------------------------------------------
         NowPlayingData npd;
@@ -273,132 +273,154 @@ ftxui::Component TxplayUI::build_ui() {
         npd.position_ms = app_.get_position_ms();
         npd.duration_ms = app_.get_duration_ms();
 
-        // ---- Visualizer element --------------------------------------------
-        // When disabled: element is omitted from layout entirely.
-        // Height is responsive: wide→11, medium→8, small→5.
-        // This overrides config.visualizer.height to provide layout-aware sizing.
-        bool vis_enabled = config_.visualizer().enabled;
-        Element visualizer_el = text(""); // placeholder; not used when disabled
-        if (vis_enabled) {
-            auto mags   = app_.get_visualizer_magnitudes();
-            int  vis_w  = std::max(1, width - 2);
-            // Responsive height: large on wide terminals, compact on narrow.
-            int  vis_h;
-            if (width >= kWideWidth)   vis_h = 11;
-            else if (width >= kMediumWidth) vis_h = 8;
-            else                       vis_h = 5;
-            visualizer_el = render_visualizer(mags, config_.visualizer().style,
-                                              vis_w, vis_h);
-            // Separator above for visual separation from song list.
-            visualizer_el = vbox({
-                separator() | color(Color::GrayDark),
-                visualizer_el,
-            });
-        }
+        // ---- Header --------------------------------------------------------
+        // build_header() knows its own height; we track it for vis_h math.
+        auto header_el = build_header(width);
+        // Header heights: wide=11, medium=9, narrow=6
+        const int header_h = (width >= kWideWidth) ? 11
+                           : (width >= kMediumWidth) ?  9 : 6;
 
         // ---- Search bar ----------------------------------------------------
-        // Always shows a subtle left decoration.
-        // When focused: '│' in cyan; otherwise '·' in dark gray.
         bool search_focused = search_input->Focused();
         Element search_el = hbox({
             text(search_focused
-                 ? "  \xe2\x94\x82 "   // │
-                 : "  \xc2\xb7 ")      // ·
+                 ? "  \xe2\x94\x82 "   // │ cyan when focused
+                 : "  \xc2\xb7 ")      // · dim when idle
                 | color(search_focused ? Color::Cyan : Color::GrayDark),
             search_input->Render() | flex,
         });
+        const int search_h = 1;
 
-        // ---- Section labels for songs / queue ------------------------------
-        // "songs" label with track count or status indicator.
+        // ---- Visualizer ----------------------------------------------------
+        // Placed above the song/queue content.
+        // Height is computed dynamically so the entire terminal is used.
+        //
+        // Fixed overheads:
+        //   header_h  (varies by width)
+        //   search_h  = 1
+        //   vis_sep   = 1 (separator above vis)
+        //   content   = songs_cap (the main songs+queue area)
+        //   np_h      = 6 (border + title + artist + blank + seek + border)
+        //
+        // For small screens, adjust for tab_bar (1 row extra).
+        const int np_h      = 6;
+        const int vis_sep_h = 1;
+        const bool small_screen = (width < kMediumWidth);
+        const int tab_h     = small_screen ? 1 : 0;
+
+        // Songs/queue region height: ~25% of terminal, capped at 12, min 4.
+        // On small screens, slightly reduced.
+        const int songs_cap = small_screen
+            ? std::max(4, std::min(8, term_h / 4))
+            : std::max(6, std::min(12, term_h / 4));
+
+        bool vis_enabled = config_.visualizer().enabled;
+        Element visualizer_el = text(""); // unused when disabled
+        int vis_h = 0;
+
+        if (vis_enabled) {
+            // vis_h = terminal_height minus everything else.
+            vis_h = std::max(2,
+                term_h - header_h - search_h - tab_h
+                       - vis_sep_h - songs_cap - np_h);
+            auto mags  = app_.get_visualizer_magnitudes();
+            int  vis_w = std::max(1, width - 2);
+            visualizer_el = vbox({
+                separator() | color(Color::GrayDark),
+                render_visualizer(mags, config_.visualizer().style, vis_w, vis_h),
+            });
+        }
+
+        // ---- Now Playing ---------------------------------------------------
+        auto np = build_now_playing(npd, width, /*compact=*/false);
+
+        // ---- Section labels ------------------------------------------------
         std::string songs_label = "songs";
         if (app_.is_scanning()) songs_label = "songs  \xe2\x80\xa2 scanning";
 
-        // ---- Header --------------------------------------------------------
-        auto header_el = build_header();
+        // ---- Mode column (narrow left strip) --------------------------------
+        // Structurally separate so Online can be added later.
+        // ♪ = UTF-8 E2 99 AA
+        Element mode_col = vbox({
+            hbox({ text(" "), text("mode") | color(Color::GrayDark) }),
+            separator() | color(Color::GrayDark),
+            hbox({
+                text(" \xe2\x99\xaa ") | color(Color::Cyan),  // ♪
+                text("Local") | color(Color::White) | bold,
+            }),
+            filler(),
+        }) | size(WIDTH, EQUAL, 10);
 
-        // ---- Now Playing ---------------------------------------------------
-        auto np = build_now_playing(npd, width, /*compact=*/true);
-
-        // ---- Responsive layout selection -----------------------------------
+        // ====================================================================
+        // RESPONSIVE LAYOUT SELECTION
+        // ====================================================================
 
         if (width >= kMediumWidth) {
-            // ---------------------------------------------------------------
-            // WIDE / MEDIUM — songs + queue side by side
-            // ---------------------------------------------------------------
+            // ----------------------------------------------------------------
+            // WIDE / MEDIUM  ─  Three-column: Mode | Songs | Queue
             //
-            // Layout (no border boxes):
-            //
-            //   txplay                                              local
-            //   ─────────────────────────────────────────────────────────
-            //     / search library...
-            //   songs                               queue
-            //   ─────────────────────────────────   ─────────────────
-            //   ▸ Enna Sona - A. R. Rahman           ▸ Song A
-            //     Jessie's Land - A. R. Rahman         Song B
-            //     ...                                  Song C
-            //   [visualizer if enabled]
-            //   ─────────────────────────────────────────────────────────
-            //   ▶  Enna Sona - A. R. Rahman          01:24 / 04:12
-            //      ──────────────────────────────────────────────────
+            //  ┌────────── header ──────────────────────────────────────┐
+            //  │  TXPLAY art                          shortcuts  local  │
+            //  └────────────────────────────────────────────────────────┘
+            //  · / search library...
+            //  ─────────────────────────────────────────────────── (sep)
+            //  ▌▌███▌▌█████▌██▌  (visualizer, if enabled)
+            //  ┌──────┬──────────────────────────────┬────────────┐
+            //  │ mode │ songs                        │ queue      │
+            //  │ ♪ Lo │ ▸ Song - Artist              │ · Song     │
+            //  │      │   Song - Artist              │   Song     │
+            //  └──────┴──────────────────────────────┴────────────┘
+            //  ╭───────────────────────────────────────────────────╮
+            //  │ Title                                         ⏸   │
+            //  │ Artist                                            │
+            //  │                                                   │
+            //  │ 00:36  ─────────●────────────────────────  04:12  │
+            //  ╰───────────────────────────────────────────────────╯
+            // ----------------------------------------------------------------
 
             const bool wide = (width >= kWideWidth);
 
-            // Songs column: primary, gets more horizontal space on wide screens.
             Element songs_col = vbox({
-                hbox({
-                    text("  "),
-                    text(songs_label) | color(Color::GrayDark),
-                }),
+                hbox({ text("  "), text(songs_label) | color(Color::GrayDark) }),
                 separator() | color(Color::GrayDark),
                 wrapped_library_menu->Render() | vscroll_indicator | frame | flex,
-            }) | flex | xflex_grow_factor(wide ? 2 : 1);
+            }) | flex | xflex_grow_factor(wide ? 4 : 3);
 
-            // Queue column: secondary, visually lighter.
             Element queue_col = vbox({
-                hbox({
-                    text("  "),
-                    text("queue") | color(Color::GrayDark),
-                }),
+                hbox({ text("  "), text("queue") | color(Color::GrayDark) }),
                 separator() | color(Color::GrayDark),
                 queue_menu->Render() | vscroll_indicator | frame | flex,
-            }) | flex | xflex_grow_factor(1);
+            }) | flex | xflex_grow_factor(wide ? 2 : 2);
 
-            // Song+Queue height cap: prevents the list from consuming the full
-            // terminal. User can scroll; bounded height reclaims space for
-            // the visualizer and NowPlaying. Cap: wide→10, medium→8.
-            const int list_height = wide ? 10 : 8;
+            // Main content hbox: Mode | Songs | Queue
+            // Songs region is size-capped so visualizer gets real estate.
+            Element content_hbox = hbox({
+                mode_col,
+                separator() | color(Color::GrayDark),
+                songs_col,
+                separator() | color(Color::GrayDark),
+                queue_col,
+            });
+
+            // When vis is enabled: content gets fixed songs_cap height.
+            // When vis is disabled: content flexes to fill remaining space.
+            Element content_el = vis_enabled
+                ? (content_hbox | size(HEIGHT, EQUAL, songs_cap))
+                : (content_hbox | flex);
 
             Elements rows;
             rows.push_back(header_el);
             rows.push_back(search_el);
-            rows.push_back(
-                hbox({
-                    songs_col,
-                    separator() | color(Color::GrayDark),
-                    queue_col,
-                }) | size(HEIGHT, LESS_THAN, list_height)
-            );
             if (vis_enabled) rows.push_back(visualizer_el);
+            rows.push_back(content_el);
             rows.push_back(np);
             return vbox(std::move(rows));
 
         } else {
-            // ---------------------------------------------------------------
-            // SMALL / TERMUX — one pane at a time
-            // ---------------------------------------------------------------
-            //
-            //   txplay                          local
-            //   ─────────────────────────────────────
-            //   [songs]  queue                        (or songs  [queue])
-            //     / search library...
-            //   ▸ Enna Sona - A. R. Rahman
-            //     ...
-            //   [visualizer if enabled]
-            //   ─────────────────────────────────────
-            //   ▶  Enna Sona          01:24 / 04:12
-            //      ──────────────────────────────────
+            // ----------------------------------------------------------------
+            // SMALL / TERMUX  ─  Single pane, tabbed Songs / Queue
+            // ----------------------------------------------------------------
 
-            // Tab indicator — minimal, lowercase, bracket = active
             bool songs_active = (small_screen_view_ == SmallScreenView::Songs);
             Element tab_bar = hbox({
                 text("  "),
@@ -408,6 +430,7 @@ ftxui::Component TxplayUI::build_ui() {
                 text(!songs_active ? "[queue]" : " queue ")
                     | color(!songs_active ? Color::Cyan : Color::GrayDark),
                 filler(),
+                text(" \xe2\x99\xaa Local  ") | color(Color::GrayDark),
             });
 
             Element active_pane;
@@ -425,13 +448,16 @@ ftxui::Component TxplayUI::build_ui() {
                 }) | flex;
             }
 
+            Element content_el = vis_enabled
+                ? (active_pane | size(HEIGHT, EQUAL, songs_cap))
+                : (active_pane | flex);
+
             Elements rows;
             rows.push_back(header_el);
             rows.push_back(tab_bar);
             rows.push_back(search_el);
-            // Small screen: cap song list height to reclaim space.
-            rows.push_back(active_pane | size(HEIGHT, LESS_THAN, 6));
             if (vis_enabled) rows.push_back(visualizer_el);
+            rows.push_back(content_el);
             rows.push_back(np);
             return vbox(std::move(rows));
         }

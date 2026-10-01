@@ -37,12 +37,10 @@ static const std::vector<std::string> kFakeQueue = {
 };
 
 // Simulate a simple row with cursor indicator
-static Element make_song_row(const std::string& label, bool focused, bool active) {
+static Element make_song_row(const std::string& label, bool focused, bool /*active*/) {
     Element e = text(label);
     if (focused) {
         return hbox({ text("\xe2\x96\xb8 ") | color(Color::Cyan), e | bold | color(Color::White) });
-    } else if (active) {
-        return hbox({ text("\xe2\x96\xb8 ") | color(Color::GrayDark), e | color(Color::GrayLight) });
     }
     return hbox({ text("  "), e | color(Color::GrayLight) });
 }
@@ -57,14 +55,26 @@ static Element make_queue_row(const std::string& label, bool focused) {
 static void render_at(int W, const std::string& scenario, NowPlayingData npd) {
     std::cout << "\n=== " << scenario << " [width=" << W << "] ===\n";
 
-    auto header_el = build_header();
-    auto np = build_now_playing(npd, W, /*compact=*/true);
+    // Pass width to build_header() for responsive art.
+    auto header_el = build_header(W);
+    auto np = build_now_playing(npd, W, /*compact=*/false);
 
     // Search bar (unfocused)
     Element search_el = hbox({
-        text("    "),
+        text("  \xc2\xb7 ") | color(Color::GrayDark),
         text("/ search library...") | color(Color::GrayDark) | flex,
     });
+
+    // Mode column (narrow, fixed 10 cols)
+    Element mode_col = vbox({
+        hbox({ text(" "), text("mode") | color(Color::GrayDark) }),
+        separator() | color(Color::GrayDark),
+        hbox({
+            text(" \xe2\x99\xaa ") | color(Color::Cyan),  // ♪
+            text("Local") | color(Color::White) | bold,
+        }),
+        filler(),
+    }) | size(WIDTH, EQUAL, 10);
 
     // Songs pane
     Elements song_rows;
@@ -73,7 +83,7 @@ static void render_at(int W, const std::string& scenario, NowPlayingData npd) {
     for (int i = 0; i < (int)kFakeSongs.size(); ++i) {
         song_rows.push_back(make_song_row(kFakeSongs[i], i == 0, false));
     }
-    Element songs_col = vbox(std::move(song_rows)) | flex | xflex_grow_factor(2);
+    Element songs_col = vbox(std::move(song_rows)) | flex | xflex_grow_factor(W >= 100 ? 4 : 3);
 
     // Queue pane
     Elements q_rows;
@@ -83,16 +93,19 @@ static void render_at(int W, const std::string& scenario, NowPlayingData npd) {
         q_rows.push_back(make_queue_row(kFakeQueue[i], i == 0));
     }
     q_rows.push_back(make_queue_row("empty", false));
-    Element queue_col = vbox(std::move(q_rows)) | flex | xflex_grow_factor(1);
+    Element queue_col = vbox(std::move(q_rows)) | flex | xflex_grow_factor(2);
 
     Element content;
     if (W >= 60) {
         content = hbox({
+            mode_col,
+            separator() | color(Color::GrayDark),
             songs_col,
             separator() | color(Color::GrayDark),
             queue_col,
         }) | flex;
     } else {
+        // Small screen: just songs pane (no mode/queue column)
         content = vbox({ songs_col }) | flex;
     }
 
