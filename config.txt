@@ -23,8 +23,13 @@ seek_seconds=5
 [Visualizer]
 # Show the real-time FFT visualizer panel.
 enabled=true
-# Rendering style. Currently only "bars" is supported.
-style=bars
+# Visualizer effect. Set to one of the registered effect names:
+#   bars     — Classic vertical bars driven by raw audio samples. (default)
+#   peak     — Floating peak markers with EMA smoothing, hold, and decay.
+#   spectrum — Frequency-spectrum bars using FFT bands (40 Hz – 18 kHz),
+#              coloured blue → cyan → magenta by frequency.
+# Example: style=spectrum
+style=peak
 # Height of the visualizer in terminal rows (1-20).
 height=6
 

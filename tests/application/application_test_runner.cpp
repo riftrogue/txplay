@@ -3,7 +3,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
-#include "Application.hpp"
+#include "application/Application.hpp"
 #include "config/Config.hpp"
 
 using namespace txplay::application;
@@ -36,8 +36,9 @@ static txplay::config::Config make_test_config(
     bool autoplay_limit = false,
     int  autoplay_limit_value = 10)
 {
-    static const std::string tmp_cfg = "experiments/app-test/tmp_test_config.txt";
+    static const std::string tmp_cfg = "tests/tmp/app-test/tmp_test_config.txt";
     {
+        fs::create_directories(fs::path(tmp_cfg).parent_path());
         std::ofstream out(tmp_cfg);
         out << "[Library]\n";
         for (const auto& p : paths)
@@ -53,8 +54,8 @@ static txplay::config::Config make_test_config(
 int main() {
     std::cout << "--- Application Test Runner ---" << std::endl;
 
-    std::string test_dir   = "experiments/app-test/root";
-    std::string source_mp3 = "experiments/audio-test/test.mp3";
+    std::string test_dir   = "tests/tmp/app-test/root";
+    std::string source_mp3 = "tests/fixtures/audio/test.mp3";
     std::string target_mp3  = test_dir + "/test.mp3";
     std::string target_mp3b = test_dir + "/test_b.mp3";
 
@@ -473,7 +474,7 @@ int main() {
     // =========================================================================
     {
         // Copy fresh file in its own sub-dir
-        std::string tmp_dir = "experiments/app-test/tmp";
+        std::string tmp_dir = "tests/tmp/app-test/tmp";
         fs::create_directories(tmp_dir);
         std::string tmp_mp3 = tmp_dir + "/tmp.mp3";
         fs::copy_file(source_mp3, tmp_mp3);
@@ -495,7 +496,7 @@ int main() {
     // 13. Bad/unplayable file
     // =========================================================================
     {
-        std::string tmp_dir2 = "experiments/app-test/bad";
+        std::string tmp_dir2 = "tests/tmp/app-test/bad";
         fs::create_directories(tmp_dir2);
         std::string bad_mp3 = tmp_dir2 + "/bad.mp3";
         { std::ofstream out(bad_mp3); out << "bad data"; }

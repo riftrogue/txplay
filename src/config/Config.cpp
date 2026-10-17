@@ -339,7 +339,11 @@ void Config::save() const {
         out << "[Visualizer]\n";
         out << "# Show the real-time FFT visualizer panel.\n";
         out << "enabled=" << (visualizer_.enabled ? "true" : "false") << "\n";
-        out << "# Rendering style: \"bars\" (default) or \"peak\".\n";
+        out << "# Visualizer effect. Set to one of the registered effect names:\n";
+        out << "#   bars     — Classic vertical bars driven by audio samples. (default)\n";
+        out << "#   peak     — Floating peak markers with EMA smoothing, hold, and decay.\n";
+        out << "#   spectrum — Frequency-spectrum bars using FFT bands (40 Hz - 18 kHz).\n";
+        out << "# Example: style=spectrum\n";
         out << "style=" << visualizer_.style << "\n";
         out << "# Height of the visualizer in terminal rows (1-20).\n";
         out << "height=" << visualizer_.height << "\n";

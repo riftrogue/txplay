@@ -3,7 +3,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
-#include "Library.hpp"
+#include "library/Library.hpp"
 
 using namespace txplay::library;
 using namespace std::chrono_literals;
@@ -12,30 +12,30 @@ int main() {
     std::cout << "--- Library Test Runner ---" << std::endl;
 
     std::vector<std::string> paths = {
-        "experiments/library-test/root1",
-        "experiments/library-test/root1", // Duplicate root
-        "experiments/library-test/root2",
-        "experiments/library-test/root1/nested" // Overlapping root
+        "tests/tmp/library-test/root1",
+        "tests/tmp/library-test/root1", // Duplicate root
+        "tests/tmp/library-test/root2",
+        "tests/tmp/library-test/root1/nested" // Overlapping root
     };
 
     namespace fs = std::filesystem;
-    if (fs::exists("experiments/library-test")) {
-        fs::remove_all("experiments/library-test");
+    if (fs::exists("tests/tmp/library-test")) {
+        fs::remove_all("tests/tmp/library-test");
     }
-    fs::create_directories("experiments/library-test/root1/nested");
-    fs::create_directories("experiments/library-test/root2");
+    fs::create_directories("tests/tmp/library-test/root1/nested");
+    fs::create_directories("tests/tmp/library-test/root2");
     
     // Create dummy files
     auto touch = [](const std::string& p) { std::ofstream(p) << "dummy"; };
-    touch("experiments/library-test/root1/a.mp3");
-    touch("experiments/library-test/root1/nested/b.flac");
-    touch("experiments/library-test/root2/c.wav");
-    touch("experiments/library-test/root1/unsupported.txt");
+    touch("tests/tmp/library-test/root1/a.mp3");
+    touch("tests/tmp/library-test/root1/nested/b.flac");
+    touch("tests/tmp/library-test/root2/c.wav");
+    touch("tests/tmp/library-test/root1/unsupported.txt");
     
     // Create symlinks
     std::error_code ec;
-    fs::create_symlink(fs::absolute("experiments/library-test/root1/a.mp3"), "experiments/library-test/root2/a_link.mp3", ec);
-    fs::create_directory_symlink(fs::absolute("experiments/library-test/root1"), "experiments/library-test/root2/root1_link", ec);
+    fs::create_symlink(fs::absolute("tests/tmp/library-test/root1/a.mp3"), "tests/tmp/library-test/root2/a_link.mp3", ec);
+    fs::create_directory_symlink(fs::absolute("tests/tmp/library-test/root1"), "tests/tmp/library-test/root2/root1_link", ec);
 
     Library lib;
     
@@ -171,11 +171,11 @@ int main() {
 
     // -------------------------------------------------------------------------
     // Metadata Tests — T1 through T5 + WAV
-    // Fixtures are in experiments/metadata-test/ (created by fixture generator).
+    // Fixtures are in tests/fixtures/metadata/.
     // -------------------------------------------------------------------------
     std::cout << "\n--- Metadata Extraction Tests ---" << std::endl;
 
-    const std::string meta_dir = "experiments/metadata-test";
+    const std::string meta_dir = "tests/fixtures/metadata";
     if (!fs::exists(meta_dir)) {
         std::cout << "  SKIP: metadata test fixtures not found at " << meta_dir
                   << " — run scripts/generate_metadata_fixtures.py first." << std::endl;

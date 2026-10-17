@@ -18,6 +18,7 @@
 #include "ui/visualizer/VisualizerEffect.hpp"
 #include "ui/visualizer/effects/BarsEffect.hpp"
 #include "ui/visualizer/effects/PeakEffect.hpp"
+#include "ui/visualizer/effects/SpectrumEffect.hpp"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -179,6 +180,99 @@ static void test_fft_bands_in_context_accessible() {
 }
 
 // ---------------------------------------------------------------------------
+// SpectrumEffect tests
+// ---------------------------------------------------------------------------
+
+static void test_spectrum_registered_in_registry() {
+    printf("VT14: EffectRegistry::find(\"spectrum\") returns non-null...\n");
+    auto reg = txplay::ui::EffectRegistry::create();
+    txplay::ui::VisualizerEffect* e = reg.find("spectrum");
+    assert(e != nullptr && "spectrum must be registered");
+    assert(e->name() == "spectrum");
+    printf("  VT14 passed.\n");
+}
+
+static void test_spectrum_empty_fft_bands_no_crash() {
+    printf("VT15: SpectrumEffect::render() handles empty fft_bands without crash...\n");
+    txplay::ui::SpectrumEffect effect;
+    auto samples = make_samples(1024, 0.0f);
+    txplay::ui::VisualizerContext ctx{samples, kEmptyBands, 80, 8};
+    auto el = effect.render(ctx);
+    (void)el;
+    printf("  VT15 passed.\n");
+}
+
+static void test_spectrum_all_zero_magnitudes() {
+    printf("VT16: SpectrumEffect::render() handles all-zero magnitudes (silence)...\n");
+    txplay::ui::SpectrumEffect effect;
+    auto samples = make_samples(1024, 0.0f);
+    auto bands   = make_samples(32, 0.0f);  // silence
+    txplay::ui::VisualizerContext ctx{samples, bands, 80, 8};
+    // Multiple frames to verify EMA drains to zero without crash.
+    for (int i = 0; i < 20; ++i) {
+        auto el = effect.render(ctx);
+        (void)el;
+    }
+    printf("  VT16 passed.\n");
+}
+
+static void test_spectrum_narrow_terminal() {
+    printf("VT17: SpectrumEffect::render() handles terminal narrower than band count...\n");
+    txplay::ui::SpectrumEffect effect;
+    auto samples = make_samples(1024, 0.5f);
+    auto bands   = make_samples(32, 0.6f);
+    // Width 8 << 32 bands: must subsample without crash.
+    txplay::ui::VisualizerContext ctx{samples, bands, 8, 8};
+    auto el = effect.render(ctx);
+    (void)el;
+    printf("  VT17 passed.\n");
+}
+
+static void test_spectrum_wide_terminal() {
+    printf("VT18: SpectrumEffect::render() handles terminal wider than band count...\n");
+    txplay::ui::SpectrumEffect effect;
+    auto samples = make_samples(1024, 0.5f);
+    auto bands   = make_samples(32, 0.6f);
+    // Width 200 >> 32 bands: must upsample/interpolate without crash.
+    txplay::ui::VisualizerContext ctx{samples, bands, 200, 8};
+    auto el = effect.render(ctx);
+    (void)el;
+    printf("  VT18 passed.\n");
+}
+
+static void test_spectrum_valid_magnitudes_render() {
+    printf("VT19: SpectrumEffect::render() produces output with valid band data...\n");
+    txplay::ui::SpectrumEffect effect;
+    auto samples = make_samples(1024, 0.5f);
+    // Simulate a 1 kHz peak: band ~17 high, others moderate.
+    std::vector<float> bands(32, 0.2f);
+    bands[16] = 0.9f;
+    bands[17] = 1.0f;
+    bands[18] = 0.85f;
+    txplay::ui::VisualizerContext ctx{samples, bands, 80, 10};
+    // Render 5 frames to let EMA converge.
+    for (int i = 0; i < 5; ++i) {
+        auto el = effect.render(ctx);
+        (void)el;
+    }
+    printf("  VT19 passed.\n");
+}
+
+static void test_spectrum_clamps_out_of_range_magnitudes() {
+    printf("VT20: SpectrumEffect::render() clamps magnitudes outside [0, 1]...\n");
+    txplay::ui::SpectrumEffect effect;
+    auto samples = make_samples(1024, 0.0f);
+    // Intentionally out-of-range magnitudes.
+    std::vector<float> bands(32, 0.0f);
+    bands[0]  =  2.5f;   // above 1.0
+    bands[31] = -0.5f;   // below 0.0
+    txplay::ui::VisualizerContext ctx{samples, bands, 80, 8};
+    auto el = effect.render(ctx);
+    (void)el;
+    printf("  VT20 passed.\n");
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -198,7 +292,14 @@ int main() {
     test_peak_multiple_frames_accumulate_state();
     test_registry_effect_instances_persist();
     test_fft_bands_in_context_accessible();
+    test_spectrum_registered_in_registry();
+    test_spectrum_empty_fft_bands_no_crash();
+    test_spectrum_all_zero_magnitudes();
+    test_spectrum_narrow_terminal();
+    test_spectrum_wide_terminal();
+    test_spectrum_valid_magnitudes_render();
+    test_spectrum_clamps_out_of_range_magnitudes();
 
-    printf("\nAll visualizer architecture assertions passed! (13 tests)\n");
+    printf("\nAll visualizer architecture assertions passed! (20 tests)\n");
     return 0;
 }

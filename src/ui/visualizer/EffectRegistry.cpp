@@ -22,6 +22,7 @@
 // ---- Register all known effects here ----
 #include "effects/BarsEffect.hpp"
 #include "effects/PeakEffect.hpp"
+#include "effects/SpectrumEffect.hpp"
 
 namespace txplay::ui {
 
@@ -43,6 +44,7 @@ EffectRegistry EffectRegistry::create() {
 
     register_effect(registry.effects_, std::make_unique<BarsEffect>());
     register_effect(registry.effects_, std::make_unique<PeakEffect>());
+    register_effect(registry.effects_, std::make_unique<SpectrumEffect>());
 
     return registry;
 }

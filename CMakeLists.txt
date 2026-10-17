@@ -104,6 +104,7 @@ set(UI_SRCS
     src/ui/visualizer/EffectRegistry.cpp
     src/ui/visualizer/effects/BarsEffect.cpp
     src/ui/visualizer/effects/PeakEffect.cpp
+    src/ui/visualizer/effects/SpectrumEffect.cpp
 )
 
 # InputAdapter test runner (requires FTXUI to construct Event values)
@@ -140,6 +141,7 @@ add_executable(visualizer_test_runner
     src/ui/visualizer/EffectRegistry.cpp
     src/ui/visualizer/effects/BarsEffect.cpp
     src/ui/visualizer/effects/PeakEffect.cpp
+    src/ui/visualizer/effects/SpectrumEffect.cpp
 )
 target_include_directories(visualizer_test_runner PRIVATE ${TXPLAY_INCLUDE_DIRS})
 target_link_libraries(visualizer_test_runner PRIVATE ftxui::screen ftxui::dom m pthread dl)

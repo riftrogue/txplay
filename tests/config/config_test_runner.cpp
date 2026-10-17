@@ -2,7 +2,7 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
-#include "Config.hpp"
+#include "config/Config.hpp"
 #include "common/Key.hpp"
 
 using namespace txplay::config;
@@ -14,7 +14,7 @@ namespace fs = std::filesystem;
 // Helpers
 // ---------------------------------------------------------------------------
 
-static const std::string TEST_ROOT = "experiments/config-test";
+static const std::string TEST_ROOT = "tests/fixtures/config";
 
 // Write a config file to the test directory and return its path.
 static std::string write_tmp(const std::string& name, const std::string& content) {
@@ -420,7 +420,7 @@ static void test_modified_flag() {
     assert(!cfg.is_modified());           // flag cleared after successful save
     assert(fs::exists(save_path));        // file was created at the isolated path
 
-    assert(save_path.find("experiments/") != std::string::npos);
+    assert(save_path.find("tests/") != std::string::npos);
 
     std::cout << "  T10 passed." << std::endl;
 }

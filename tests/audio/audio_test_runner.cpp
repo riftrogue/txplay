@@ -2,8 +2,8 @@
 #include <string>
 #include <thread>
 #include <chrono>
-#include "AudioEngine.hpp"
-#include "Analyzer.hpp"
+#include "audio/AudioEngine.hpp"
+#include "audio/Analyzer.hpp"
 
 using namespace txplay::audio;
 using namespace std::chrono_literals;
@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
     std::cout << "Position after rapid seeks: " << engine.get_position_ms() << " ms" << std::endl;
 
     std::cout << "Track replacement: Loading test.flac over current track..." << std::endl;
-    if (!engine.play("experiments/audio-test/test.flac")) {
+    if (!engine.play("tests/fixtures/audio/test.flac")) {
         std::cerr << "Failed to play FLAC." << std::endl;
         return 1;
     }
