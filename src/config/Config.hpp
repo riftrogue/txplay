@@ -24,7 +24,7 @@ struct PlaybackConfig {
 
 struct VisualizerConfig {
     bool        enabled{true};
-    std::string style{"bars"};  // currently only "bars" is supported
+    std::string style{"bars"};  // "bars" (default) or "peak"
     int         height{6};      // terminal rows (1–20)
 };
 

@@ -452,4 +452,10 @@ std::vector<float> Application::get_visualizer_magnitudes() const {
     return analyzer->get_latest_window();
 }
 
+std::vector<float> Application::get_frequency_bands() const {
+    auto analyzer = audio_engine_.get_analyzer();
+    if (!analyzer) return {};
+    return analyzer->get_frequency_bands();
+}
+
 } // namespace txplay::application

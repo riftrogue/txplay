@@ -51,9 +51,14 @@ set(AUDIO_SRCS
 )
 
 # Audio test runner executable
-add_executable(audio_test_runner src/audio/audio_test_runner.cpp ${AUDIO_SRCS})
+add_executable(audio_test_runner tests/audio/audio_test_runner.cpp ${AUDIO_SRCS})
 target_include_directories(audio_test_runner PRIVATE ${TXPLAY_INCLUDE_DIRS} third_party/miniaudio)
 target_link_libraries(audio_test_runner PRIVATE m pthread dl)
+
+# FFT / Analyzer integration test runner
+add_executable(fft_test_runner tests/audio/fft_test_runner.cpp ${AUDIO_SRCS})
+target_include_directories(fft_test_runner PRIVATE ${TXPLAY_INCLUDE_DIRS} third_party/miniaudio)
+target_link_libraries(fft_test_runner PRIVATE m pthread dl)
 
 # Library Source Files
 set(LIBRARY_SRCS
@@ -63,13 +68,13 @@ set(LIBRARY_SRCS
 )
 
 # Library test runner executable
-add_executable(library_test_runner src/library/library_test_runner.cpp ${LIBRARY_SRCS})
+add_executable(library_test_runner tests/library/library_test_runner.cpp ${LIBRARY_SRCS})
 target_include_directories(library_test_runner PRIVATE ${TXPLAY_INCLUDE_DIRS} ${TAGLIB_INCLUDE_DIRS})
 target_link_libraries(library_test_runner PRIVATE tag m pthread dl)
 
 # Config test runner executable
 add_executable(config_test_runner
-    src/config/config_test_runner.cpp
+    tests/config/config_test_runner.cpp
     ${CONFIG_SRCS}
 )
 target_include_directories(config_test_runner PRIVATE ${TXPLAY_INCLUDE_DIRS})
@@ -82,7 +87,7 @@ set(APPLICATION_SRCS
 
 # Application test runner executable
 add_executable(application_test_runner
-    src/application/application_test_runner.cpp
+    tests/application/application_test_runner.cpp
     ${APPLICATION_SRCS} ${LIBRARY_SRCS} ${AUDIO_SRCS} ${CONFIG_SRCS}
 )
 target_include_directories(application_test_runner PRIVATE ${TXPLAY_INCLUDE_DIRS} third_party/miniaudio ${TAGLIB_INCLUDE_DIRS})
@@ -91,20 +96,26 @@ target_link_libraries(application_test_runner PRIVATE tag m pthread dl)
 # UI Source Files (FTXUI-dependent; excluded from test runners)
 set(UI_SRCS
     src/ui/TxplayUI.cpp
-    src/ui/Visualizer.cpp
     src/ui/InputAdapter.cpp
+    # Visualizer subsystem — see src/ui/visualizer/ for architecture details.
+    # To add a new effect: create its .cpp in effects/, add it here, and
+    # register it in EffectRegistry.cpp.  No other file needs to change.
+    src/ui/visualizer/Visualizer.cpp
+    src/ui/visualizer/EffectRegistry.cpp
+    src/ui/visualizer/effects/BarsEffect.cpp
+    src/ui/visualizer/effects/PeakEffect.cpp
 )
 
 # InputAdapter test runner (requires FTXUI to construct Event values)
 add_executable(input_adapter_test_runner
-    src/ui/input_adapter_test_runner.cpp
+    tests/ui/input_adapter_test_runner.cpp
     src/ui/InputAdapter.cpp
 )
 target_include_directories(input_adapter_test_runner PRIVATE ${TXPLAY_INCLUDE_DIRS})
 target_link_libraries(input_adapter_test_runner PRIVATE ftxui::screen ftxui::dom ftxui::component m pthread dl)
 
 # UI utility test runner (pure C++17, no FTXUI required)
-add_executable(ui_util_test_runner src/ui/ui_util_test_runner.cpp)
+add_executable(ui_util_test_runner tests/ui/ui_util_test_runner.cpp)
 target_include_directories(ui_util_test_runner PRIVATE ${TXPLAY_INCLUDE_DIRS})
 target_link_libraries(ui_util_test_runner PRIVATE m pthread dl)
 
@@ -120,3 +131,15 @@ target_link_libraries(txplay PRIVATE tag ftxui::screen ftxui::dom ftxui::compone
 add_executable(layout_preview src/ui/layout_preview.cpp)
 target_include_directories(layout_preview PRIVATE ${TXPLAY_INCLUDE_DIRS})
 target_link_libraries(layout_preview PRIVATE ftxui::screen ftxui::dom m pthread dl)
+
+# Visualizer architecture test runner
+# Tests: EffectRegistry lookup, BarsEffect and PeakEffect rendering,
+#        degenerate dimensions, resize state reinitialisation.
+add_executable(visualizer_test_runner
+    tests/ui/visualizer_test_runner.cpp
+    src/ui/visualizer/EffectRegistry.cpp
+    src/ui/visualizer/effects/BarsEffect.cpp
+    src/ui/visualizer/effects/PeakEffect.cpp
+)
+target_include_directories(visualizer_test_runner PRIVATE ${TXPLAY_INCLUDE_DIRS})
+target_link_libraries(visualizer_test_runner PRIVATE ftxui::screen ftxui::dom m pthread dl)

@@ -1,7 +1,7 @@
 #include "TxplayUI.hpp"
 #include "Util.hpp"
 #include "Widgets.hpp"
-#include "Visualizer.hpp"
+#include "visualizer/Visualizer.hpp"
 #include "InputAdapter.hpp"
 #include "components/NowPlaying.hpp"
 #include "components/Header.hpp"
@@ -324,10 +324,11 @@ ftxui::Component TxplayUI::build_ui() {
                 term_h - header_h - search_h - tab_h
                        - vis_sep_h - songs_cap - np_h);
             auto mags  = app_.get_visualizer_magnitudes();
+            auto bands = app_.get_frequency_bands();
             int  vis_w = std::max(1, width - 2);
             visualizer_el = vbox({
                 separator() | color(Color::GrayDark),
-                render_visualizer(mags, config_.visualizer().style, vis_w, vis_h),
+                render_visualizer(mags, bands, config_.visualizer().style, vis_w, vis_h),
             });
         }
 

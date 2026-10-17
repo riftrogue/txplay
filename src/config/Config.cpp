@@ -339,7 +339,7 @@ void Config::save() const {
         out << "[Visualizer]\n";
         out << "# Show the real-time FFT visualizer panel.\n";
         out << "enabled=" << (visualizer_.enabled ? "true" : "false") << "\n";
-        out << "# Rendering style. Currently only \"bars\" is supported.\n";
+        out << "# Rendering style: \"bars\" (default) or \"peak\".\n";
         out << "style=" << visualizer_.style << "\n";
         out << "# Height of the visualizer in terminal rows (1-20).\n";
         out << "height=" << visualizer_.height << "\n";

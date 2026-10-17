@@ -67,6 +67,9 @@ public:
     // Returns an empty vector when nothing is playing or analyzer is unavailable.
     // The UI should NOT access the Analyzer directly.
     std::vector<float> get_visualizer_magnitudes() const;
+    // Returns 32 EMA-smoothed frequency-band magnitudes in [0, 1],
+    // logarithmically spaced from ~40 Hz to ~18 kHz.
+    std::vector<float> get_frequency_bands() const;
 
 private:
     // Advance queue: pop and play the next valid FIFO queue entry.
