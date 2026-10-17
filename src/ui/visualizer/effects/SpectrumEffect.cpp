@@ -67,17 +67,18 @@ ftxui::Element SpectrumEffect::render(const VisualizerContext& ctx) {
     bars.reserve(static_cast<size_t>(width));
 
     for (int col = 0; col < width; ++col) {
+        // Normalised position of this column in [0, 1] — used both for band
+        // interpolation and for the colour gradient.
+        const float t = (width > 1)
+            ? static_cast<float>(col) / static_cast<float>(width - 1)
+            : 0.0f;
+
         // Map this terminal column to a band index via linear interpolation.
-        // When width < num_bands  → subsample (multiple bands per column, take max).
+        // When width < num_bands  → subsample (multiple bands per column).
         // When width >= num_bands → upsample  (multiple columns per band).
         float raw = 0.0f;
 
         if (num_bands > 0) {
-            // Normalised position of this column in [0, 1].
-            float t = (width > 1)
-                ? static_cast<float>(col) / static_cast<float>(width - 1)
-                : 0.0f;
-
             // Corresponding floating-point band index.
             float band_f = t * static_cast<float>(num_bands - 1);
             int   b0     = static_cast<int>(band_f);
@@ -96,13 +97,8 @@ ftxui::Element SpectrumEffect::render(const VisualizerContext& ctx) {
 
         const float val = smoothed_[static_cast<size_t>(col)];
 
-        // Colour is determined by the column's normalised position in the spectrum.
-        const float t_color = (width > 1)
-            ? static_cast<float>(col) / static_cast<float>(width - 1)
-            : 0.0f;
-
         bars.push_back(
-            gaugeUp(val) | color(band_color(t_color)) | flex
+            gaugeUp(val) | color(band_color(t)) | flex
         );
     }
 

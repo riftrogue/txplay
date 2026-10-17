@@ -11,11 +11,12 @@
 //
 //   render_visualizer()          ← called from TxplayUI at ~30 FPS
 //       │
-//       ├── EffectRegistry       ← resolves "bars" / "peak" / … → effect*
+//       ├── EffectRegistry       ← resolves "bars" / "peak" / "spectrum" → effect*
 //       │
 //       └── VisualizerEffect::render(VisualizerContext)
-//               ├── BarsEffect   ← green bars
-//               └── PeakEffect   ← cyan floating markers
+//               ├── BarsEffect     ← green bars (raw PCM samples)
+//               ├── PeakEffect     ← cyan floating peak markers
+//               └── SpectrumEffect ← FFT frequency-spectrum bars (blue→cyan→magenta)
 //
 // Adding a new effect: see EffectRegistry.cpp.
 
